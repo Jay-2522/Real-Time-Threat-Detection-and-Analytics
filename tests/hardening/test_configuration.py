@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import pytest
 import yaml
+from scripts.setup_local import compose_command
 
 ROOT=Path(__file__).resolve().parents[2]
 COMPOSE=ROOT/'deploy/hardened/compose.yml'
@@ -12,7 +13,7 @@ COMPOSE=ROOT/'deploy/hardened/compose.yml'
 
 def test_hardened_compose_requires_secret_directory():
     env={k:v for k,v in os.environ.items() if k!='HARDENED_SECRETS_DIR'}
-    result=subprocess.run(['docker','compose','-f',str(COMPOSE),'config','--quiet'],env=env,capture_output=True,text=True)
+    result=subprocess.run([*compose_command(),'-f',str(COMPOSE),'config','--quiet'],env=env,capture_output=True,text=True)
     assert result.returncode != 0 and 'HARDENED_SECRETS_DIR' in result.stderr
 
 

@@ -54,6 +54,17 @@ volumes/
 # Logs
 logs/
 *.log
+data/real/
+*.cowrie.json
+!data/samples/*.cowrie.json
+
+# Local security datasets and generated evaluation output
+**/*CICIDS*.csv
+**/*CIC-IDS*.csv
+**/*WorkingHours*.csv
+**/*.pcap_ISCX.csv
+eval/results/*
+!eval/results/latest.md
 
 # Generated artifacts
 ml-models/artifacts/*.joblib

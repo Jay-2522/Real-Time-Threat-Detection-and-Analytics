@@ -12,6 +12,7 @@ import tempfile
 
 import httpx
 import pytest
+from scripts.setup_local import compose_command
 
 ROOT=Path(__file__).resolve().parents[2]
 PROJECT=os.environ.get('HARDENED_PROJECT','soc-hardened')
@@ -22,7 +23,7 @@ def compose(*args,input=None,timeout=90,expected_returncode=0):
     files=['-f',str(ROOT/'deploy/hardened/compose.yml')]
     if os.environ.get('HARDENED_COMPOSE_OVERRIDE'):
         files+=['-f',os.environ['HARDENED_COMPOSE_OVERRIDE']]
-    result=subprocess.run(['docker','compose','-p',PROJECT,*files,*args],input=input,text=True,capture_output=True,timeout=timeout)
+    result=subprocess.run([*compose_command(),'-p',PROJECT,*files,*args],input=input,text=True,capture_output=True,timeout=timeout)
     if result.returncode!=expected_returncode:
         # Keep diagnostics private and ignored; never expose credentials in pytest output.
         directory=ROOT/'.codex-logs/hardening'

@@ -2,6 +2,8 @@
 
 # Real-Time Streaming Analytics Platform
 
+[![Fast Checks](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/fast-checks.yml/badge.svg?branch=ci%2Fgithub-actions)](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/fast-checks.yml?query=branch%3Aci%2Fgithub-actions)
+
 ### AI-powered real-time SOC/XDR analytics platform for streaming telemetry, anomaly detection, threat intelligence, and incident response.
 
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)

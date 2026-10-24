@@ -91,6 +91,16 @@ def test_training_artifact_roundtrip_and_metadata_rejection(tmp_path):
     with pytest.raises(ValueError): store.validate_artifacts(artifacts)
 
 
+def test_model_input_count_must_match_feature_contract(tmp_path):
+    settings = train(tmp_path)
+    store = load_ml_module("app.models.artifact_store")
+    artifacts = store.load_artifacts(settings.artifact_dir)
+    assert artifacts.model.n_features_in_ == len(store.FEATURE_COLUMNS) == 18
+    artifacts.model.n_features_in_ -= 1
+    with pytest.raises(ValueError, match="feature dimensions"):
+        store.validate_artifacts(artifacts)
+
+
 def test_legacy_real_artifact_is_rejected():
     store = load_ml_module("app.models.artifact_store")
     with pytest.raises(ValueError, match="Incompatible"):

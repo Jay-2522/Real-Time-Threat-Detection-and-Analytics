@@ -165,6 +165,31 @@ printf '%s|%s\n' "$EVENT_ID" "$EVENT_JSON" | docker exec -i streaming-analytics-
   kafka-console-producer --bootstrap-server streaming-analytics-kafka:29092 \
   --topic telemetry.login.events --property parse.key=true --property 'key.separator=|'
 
+# Stateful Spark windows only close after event-time advances beyond the
+# configured watermark. Use a distinct documentation-only entity so this
+# check remains deterministic when the background synthetic producer is off.
+MARKER_ID="lineage-watermark-${RUN_ID}"
+MARKER_JSON=$(MARKER_ID="$MARKER_ID" python3 - <<'PY'
+import json, os
+from datetime import UTC, datetime, timedelta
+print(json.dumps({
+    "event_id": os.environ["MARKER_ID"],
+    "timestamp": (datetime.now(UTC) + timedelta(minutes=10)).isoformat().replace("+00:00", "Z"),
+    "risk_score": 0.0,
+    "event_type": "login",
+    "user_id": os.environ["MARKER_ID"],
+    "username": "lineage-watermark",
+    "source_ip": "192.0.2.250",
+    "country": "ZZ",
+    "device_type": "lineage-test",
+    "login_success": True,
+}, separators=(",", ":")))
+PY
+)
+printf '%s|%s\n' "$MARKER_ID" "$MARKER_JSON" | docker exec -i streaming-analytics-kafka \
+  kafka-console-producer --bootstrap-server streaming-analytics-kafka:29092 \
+  --topic telemetry.login.events --property parse.key=true --property 'key.separator=|'
+
 wait_for_file "Kafka telemetry.login.events" "$WORK_DIR/source.log" "$EVENT_ID"
 wait_for_file "Spark analytics.enriched.events" "$WORK_DIR/enriched.log" "$EVENT_ID"
 wait_for_file "Spark analytics.feature.engineering" "$WORK_DIR/features.log" "$EVENT_ID"
