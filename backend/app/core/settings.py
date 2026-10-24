@@ -1,5 +1,5 @@
 from functools import lru_cache
-from infrastructure_runtime.security import database_url, hardened, elasticsearch_options, redis_options
+from infrastructure_runtime.security import database_url, hardened, elasticsearch_options
 from typing import List
 
 from pydantic import Field, field_validator, model_validator
@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: str = Field(default="sqlite+pysqlite:///./analytics.db", repr=False)
     elasticsearch_host: str = "http://localhost:9200"
-    redis_url: str = "redis://localhost:6379/0"
     prometheus_url: str = "http://localhost:9090"
     grafana_url: str = "http://localhost:3000"
 
@@ -56,10 +55,9 @@ class Settings(BaseSettings):
     def secure_origins(self):
         self.database_url = database_url(self.database_url)
         if self.environment == 'production':
-            if not hardened() or self.auth_local_http or not self.elasticsearch_host.startswith('https://') or not self.redis_url.startswith('rediss://'):
+            if not hardened() or self.auth_local_http or not self.elasticsearch_host.startswith('https://'):
                 raise RuntimeError('Production requires explicit verified service transports')
             elasticsearch_options()
-            redis_options()
         from urllib.parse import urlsplit
         for origin in self.cors_origins:
             url = urlsplit(origin)

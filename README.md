@@ -13,7 +13,6 @@
 ![Spark](https://img.shields.io/badge/Apache%20Spark-Analytics-E25A1C?style=for-the-badge&logo=apachespark&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Storage-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-Dashboards-F46800?style=for-the-badge&logo=grafana&logoColor=white)
 ![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
@@ -55,7 +54,7 @@ Everything runs locally with free/open-source tools. No paid APIs, managed cloud
 | **Detection Engineering** | Supports Sigma-like YAML detection rules and rule hit analytics. |
 | **Incident Correlation** | Groups related alerts into incidents with severity escalation and timelines. |
 | **Real-Time Alerting** | Streams live SOC alerts and incident updates through FastAPI WebSockets. |
-| **Search + Persistence** | Stores structured records in PostgreSQL, indexes searchable data in Elasticsearch, and caches latest values in Redis. |
+| **Search + Persistence** | Stores structured records in PostgreSQL and indexes searchable data in Elasticsearch. |
 | **Observability** | Exposes Prometheus metrics and Grafana dashboards for service and pipeline monitoring. |
 | **Enterprise Dashboard** | React + TypeScript dashboard for SOC analytics, threat hunting, entities, alerts, incidents, and system health. |
 | **Dockerized Microservices** | Runs as a local Docker Compose platform with full and laptop-friendly startup modes. |
@@ -71,7 +70,7 @@ flowchart TD
     C --> D["ML Inference"]
     D --> E["Threat Intelligence Engine"]
     E --> F["Alert Engine"]
-    F --> G["PostgreSQL / Redis"]
+    F --> G["PostgreSQL"]
     E --> G
     C --> G
     G --> H["FastAPI Backend"]
@@ -87,7 +86,7 @@ flowchart TD
 3. ML inference consumes analytics topics and publishes anomaly predictions.
 4. The alert engine evaluates prediction and analytics streams to create SOC alerts and incidents.
 5. The threat intelligence engine enriches activity with local IOC feeds, MITRE mappings, rule hits, and entity risk profiles.
-6. PostgreSQL, Redis, and Elasticsearch persist structured, cached, and searchable records.
+6. PostgreSQL and Elasticsearch persist structured and searchable records.
 7. FastAPI exposes REST and WebSocket APIs.
 8. React visualizes dashboards, alerts, incidents, threat intelligence, MITRE coverage, entities, timelines, and observability.
 9. Prometheus and Grafana provide platform health and metrics visibility.
@@ -147,7 +146,6 @@ For deeper diagrams, see [docs/architecture.md](docs/architecture.md).
 | --- | --- |
 | PostgreSQL | Structured telemetry, predictions, alerts, incidents, threat intelligence |
 | Elasticsearch | Searchable telemetry, alerts, IOC matches, entity profiles |
-| Redis | Latest-value cache, counters, deduplication, IOC cache |
 
 ### Observability
 
@@ -384,7 +382,7 @@ This project is intentionally built with production-style architecture patterns:
 - independent alert and threat intelligence engines
 - PostgreSQL persistence
 - Elasticsearch search indexes
-- Redis caching and deduplication
+- PostgreSQL-backed alert cooldown deduplication
 - Prometheus metrics
 - Grafana dashboards
 - FastAPI OpenAPI docs

@@ -14,8 +14,6 @@ class AlertEngineSettings(BaseSettings):
     postgres_db: str = Field(default="streaming_analytics", validation_alias="POSTGRES_DB")
     postgres_user: str = Field(default="streaming_user", validation_alias="POSTGRES_USER")
     postgres_password: str = Field(default="streaming_password", validation_alias="POSTGRES_PASSWORD")
-    redis_host: str = Field(default="localhost", validation_alias="REDIS_HOST")
-    redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
     elasticsearch_host: str = Field(default="http://localhost:9200", validation_alias="ELASTICSEARCH_HOST")
     dedup_cooldown_seconds: int = Field(default=120, validation_alias="ALERT_DEDUP_COOLDOWN_SECONDS")
     incident_window_seconds: int = Field(default=900, validation_alias="INCIDENT_CORRELATION_WINDOW_SECONDS")

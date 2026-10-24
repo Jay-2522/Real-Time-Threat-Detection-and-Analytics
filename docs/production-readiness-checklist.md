@@ -13,7 +13,7 @@
 - Grafana dashboard provisioning
 - PostgreSQL persistence
 - Elasticsearch indexing
-- Redis caching and deduplication
+- PostgreSQL-backed alert deduplication
 - WebSocket streams
 - Contract tests for core subsystems
 - API documentation via FastAPI OpenAPI

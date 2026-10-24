@@ -12,7 +12,7 @@ Kafka telemetry, analytics, and ML prediction topics
     -> MITRE ATT&CK mapping
     -> composite threat scoring
     -> entity profiles and attack timelines
-    -> PostgreSQL + Elasticsearch + Redis
+    -> PostgreSQL + Elasticsearch
     -> FastAPI threat APIs + WebSocket
     -> React XDR investigation pages
 ```
@@ -120,10 +120,6 @@ Elasticsearch indexes:
 - `detection-rule-hits`
 - `attack-timelines`
 
-Redis keys:
-
-- `ioc:{ioc_type}:{ioc_value}`
-
 ## Backend APIs
 
 Threat intelligence:
@@ -224,5 +220,3 @@ http://localhost:5173/attack-timeline
 If rule hit counts are empty, allow Kafka, Spark, ML inference, and the alert/threat services to run long enough for analytics and prediction topics to emit events.
 
 If Elasticsearch indexing is unavailable, PostgreSQL persistence continues and APIs backed by PostgreSQL remain usable.
-
-If Redis is unavailable, IOC cache writes are skipped and enrichment continues.

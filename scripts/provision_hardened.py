@@ -37,7 +37,7 @@ def main():
     run('openssl','req','-x509','-newkey','rsa:3072','-nodes','-days','365','-subj','/CN=SOC isolated deployment CA',
         '-keyout',str(ca)+'.key','-out',str(ca)+'.crt')
     (root/'authority/ca.key').chmod(0o600)
-    for service in ('postgres','redis','elasticsearch','web','kafka','kafka-admin','producer','spark','ml','storage','alerts','threat','consumer'):
+    for service in ('postgres','elasticsearch','web','kafka','kafka-admin','producer','spark','ml','storage','alerts','threat','consumer'):
         directory = root/service; directory.mkdir(exist_ok=True,mode=0o755)
         run('openssl','req','-new','-newkey','rsa:2048','-nodes','-subj',f'/CN={service}',
             '-keyout',str(directory/'server.key'),'-out',str(directory/'server.csr'))
@@ -48,18 +48,11 @@ def main():
         (directory/'server.key').chmod(0o444)
         write(service+'/ca.crt',(root/'authority/ca.crt').read_text())
     if args.test_only: write('test-only', 'Isolated security verification only.\n')
-    passwords={name:secrets.token_urlsafe(32) for name in ('postgres','elastic','backend','storage','alerts','threat','redis-admin','prometheus','grafana')}
+    passwords={name:secrets.token_urlsafe(32) for name in ('postgres','elastic','backend','storage','alerts','threat','prometheus','grafana')}
     for name in ('postgres','elastic','grafana'):
         write(('elasticsearch' if name=='elastic' else name)+'/password',passwords[name]+'\n')
-    write('redis/users.acl', 'user default off\n' + '\n'.join([
-        f'user {name} on >{passwords[name]} ~{pattern} {commands}'
-        for name,pattern,commands in [('redis-admin','*','+@all'),('backend','*','+ping +get +mget +exists'),
-                                      ('storage','pipeline:cache:storage:* ~pipeline:cache:storage-high-risk:* ~latest:prediction:* ~latest:event:* ~recent:high-risk:* ~counters:events:* ~counters:severity:*','+ping +get +set +setex +expire +del +eval +exists +incr +ttl'),('alerts','alert:* ~pipeline:cache:alert:* ~latest:alert:* ~counters:alerts:* ~live:critical-alerts','+ping +get +set +setex +expire +incr +incrby +del +eval +exists +type +lpush +ltrim +lrange +ttl'),
-                                      ('threat','ioc:*','+ping +setex')]])+'\n')
-    write('redis/redis.conf','port 0\ntls-port 6379\ntls-cert-file /run/tls/server.crt\ntls-key-file /run/tls/server.key\ntls-ca-cert-file /run/tls/ca.crt\ntls-auth-clients no\naclfile /run/tls/users.acl\nappendonly yes\nappendfsync everysec\naof-load-truncated no\ndir /data\n')
     for name in ('backend','storage','alerts','threat'):
         value={'database_url':f'postgresql+psycopg://{name}:{quote(passwords[name])}@postgres:5432/soc?sslmode=verify-full&sslrootcert=/run/security/ca.crt',
-               'redis':{'username':name,'password':passwords[name],'ssl_ca_certs':'/run/security/ca.crt'},
                'elasticsearch':{'username':name,'password':passwords[name],'ca_certs':'/run/security/ca.crt'},
                'prometheus':{'username':name,'password':passwords[name]}}
         write(name+'/security.json',json.dumps(value))

@@ -118,8 +118,8 @@ print(json.dumps({{'predictions':[{{'id':p[0],'payload':p[1]}} for p in predicti
     else:raise AssertionError('Driver checkpoint identities changed or failed to resume')
 
     # Dependency outages overlap the next input. SQL remains authoritative while
-    # search/cache are down; SQL failures must leave input offsets replayable.
-    compose('stop','elasticsearch','redis','postgres')
+    # search is down; SQL failures must leave input offsets replayable.
+    compose('stop','elasticsearch','postgres')
     try:
         second_coordinates=seed(1)
         time.sleep(5)
@@ -135,7 +135,7 @@ with create_engine(settings.database_url,hide_parameters=True).connect() as db:
 print('Durable outbox remains pending during external outage')
 ''')
     compose('kill','-s','SIGKILL','storage-sink','alert-engine','threat-intelligence-engine')
-    compose('start','elasticsearch','redis')
+    compose('start','elasticsearch')
     compose('up','-d','--no-build','storage-sink','alert-engine','threat-intelligence-engine')
     remote('backend', f'''
 import json,time
@@ -438,16 +438,6 @@ print(json.dumps(result))
     for rows in offsets.values():
         merged={topic:parts for row in rows for topic,parts in row.items()}
         assert merged==required
-
-    remote('alert-engine',f'''
-import redis
-from infrastructure_runtime.security import redis_options
-r=redis.Redis(host='redis',port=6379,ssl=True,**redis_options())
-actual=int(r.get('counters:alerts:entity:192.0.2.181') or 0)
-assert actual==44, f'Redis restart lost completed alert effects: expected 44, observed {{actual}}'
-assert all(r.exists('pipeline:cache:alert:'+key) for key in {observed['alerts']!r})
-''')
-
 
 def test_duplicate_enriched_delivery_keeps_threat_alert_and_incident_effects_unique():
     directory=marked()

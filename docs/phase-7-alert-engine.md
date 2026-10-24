@@ -1,6 +1,6 @@
 # Phase 7: Real-Time Alert Engine And Incident Intelligence
 
-Phase 7 transforms the platform into a local AI-assisted SOC system. It adds a real-time alert engine, incident correlation, Redis deduplication, severity escalation, alert and incident persistence, Elasticsearch indexing, FastAPI alert APIs, alert WebSocket streaming, and dashboard SOC views.
+Phase 7 transforms the platform into a local AI-assisted SOC system. It adds a real-time alert engine, incident correlation, PostgreSQL-backed cooldown deduplication, severity escalation, alert and incident persistence, Elasticsearch indexing, FastAPI alert APIs, alert WebSocket streaming, and dashboard SOC views.
 
 Everything remains free and local. No PagerDuty, Splunk Cloud, Datadog, cloud SIEM, paid APIs, or managed infrastructure is used.
 
@@ -9,7 +9,7 @@ Everything remains free and local. No PagerDuty, Splunk Cloud, Datadog, cloud SI
 ```text
 Kafka + Spark + ML Predictions
     -> Alert Rules Engine
-    -> Redis Deduplication
+    -> PostgreSQL Cooldown Deduplication
     -> Incident Correlation Engine
     -> PostgreSQL alerts/incidents
     -> Elasticsearch alert/incident indexes
@@ -54,14 +54,6 @@ Escalation behavior:
 - Repeated high alerts in the same correlation group escalate to critical.
 
 ## Deduplication
-
-Redis keys:
-
-- `alert:dedup:{correlation_id}:{severity}`
-- `counters:alerts:severity:{severity}`
-- `counters:alerts:entity:{entity_id}`
-- `latest:alert:{entity_id}`
-- `live:critical-alerts`
 
 The default cooldown is 120 seconds. Repeated alerts with the same correlation key and severity during the cooldown window are suppressed and counted.
 
@@ -161,7 +153,6 @@ docker logs -f streaming-analytics-alert-engine
 Expected logs:
 
 - Kafka connected.
-- Redis dedup connected or optional warning.
 - Elasticsearch connected or optional warning.
 - Alerts generated.
 - Incidents created.
@@ -204,7 +195,7 @@ If no alerts appear, verify `ml.anomaly.predictions` is receiving records and th
 
 If alerts appear but incidents do not, check for PostgreSQL errors in alert-engine logs.
 
-If many duplicate events appear, confirm Redis is reachable and the dedup cooldown keys are being created.
+If many duplicate events appear, inspect the PostgreSQL alert history and cooldown query logs.
 
 If the dashboard alert stream falls back, the REST APIs continue polling until `WS /api/v1/ws/alerts` reconnects.
 

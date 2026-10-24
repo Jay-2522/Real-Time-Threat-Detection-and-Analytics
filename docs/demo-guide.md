@@ -54,7 +54,7 @@ Full observability demo:
 - ML inference scores anomalies with Isolation Forest.
 - The alert engine deduplicates and correlates alerts into incidents.
 - The threat intelligence engine enriches events with local IOC feeds and MITRE context.
-- PostgreSQL, Elasticsearch, and Redis support structured queries, search, and fast lookup.
+- PostgreSQL and Elasticsearch support structured queries and search.
 - Prometheus and Grafana provide local observability.
 
 ## Showing Alerts And Incidents

@@ -94,22 +94,6 @@ services:
     networks:
       - streaming-analytics-network
 
-  redis:
-    container_name: streaming-analytics-redis
-    image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
-    ports:
-      - "127.0.0.1:6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    volumes:
-      - redis_data:/data
-    networks:
-      - streaming-analytics-network
-
   elasticsearch:
     container_name: streaming-analytics-elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
@@ -165,7 +149,6 @@ services:
       METRICS_TOKEN_FILE: /run/secrets/backend_metrics_token
       DATABASE_URL: postgresql+psycopg://streaming_user:${POSTGRES_PASSWORD:?Run python3 scripts/setup_local.py first}@streaming-analytics-postgres:5432/streaming_analytics
       ELASTICSEARCH_HOST: http://streaming-analytics-elasticsearch:9200
-      REDIS_URL: redis://streaming-analytics-redis:6379/0
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -366,8 +349,6 @@ services:
       POSTGRES_DB: streaming_analytics
       POSTGRES_USER: streaming_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python3 scripts/setup_local.py first}
-      REDIS_HOST: streaming-analytics-redis
-      REDIS_PORT: 6379
       ELASTICSEARCH_HOST: http://streaming-analytics-elasticsearch:9200
     ports:
       - "127.0.0.1:9102:9102"
@@ -383,8 +364,6 @@ services:
         condition: service_healthy
       schema-bootstrap:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
       elasticsearch:
         condition: service_healthy
     restart: unless-stopped
@@ -407,8 +386,6 @@ services:
       POSTGRES_DB: streaming_analytics
       POSTGRES_USER: streaming_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python3 scripts/setup_local.py first}
-      REDIS_HOST: streaming-analytics-redis
-      REDIS_PORT: 6379
       ELASTICSEARCH_HOST: http://streaming-analytics-elasticsearch:9200
       ALERT_DEDUP_COOLDOWN_SECONDS: 120
       INCIDENT_CORRELATION_WINDOW_SECONDS: 900
@@ -426,8 +403,6 @@ services:
         condition: service_healthy
       schema-bootstrap:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
       elasticsearch:
         condition: service_healthy
       ml-inference:
@@ -452,8 +427,6 @@ services:
       POSTGRES_DB: streaming_analytics
       POSTGRES_USER: streaming_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python3 scripts/setup_local.py first}
-      REDIS_HOST: streaming-analytics-redis
-      REDIS_PORT: 6379
       ELASTICSEARCH_HOST: http://streaming-analytics-elasticsearch:9200
       DETECTION_RULES_PATH: /app/rules
       THREAT_INTEL_METRICS_PORT: 9106
@@ -471,8 +444,6 @@ services:
         condition: service_healthy
       schema-bootstrap:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
       elasticsearch:
         condition: service_healthy
       ml-inference:
@@ -559,8 +530,6 @@ volumes:
     name: streaming-analytics-spark-checkpoints
   postgres_data:
     name: streaming-analytics-postgres-data
-  redis_data:
-    name: streaming-analytics-redis-data
   elasticsearch_data:
     name: streaming-analytics-elasticsearch-data
   prometheus_data:

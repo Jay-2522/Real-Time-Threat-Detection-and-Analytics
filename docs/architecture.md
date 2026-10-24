@@ -13,7 +13,7 @@ flowchart TD
     E --> G
     F --> H["Threat Intelligence Engine"]
     D --> H
-    H --> I["PostgreSQL / Elasticsearch / Redis"]
+    H --> I["PostgreSQL / Elasticsearch"]
     G --> I
     F --> I
     I --> J["FastAPI Query + WebSocket APIs"]
@@ -43,7 +43,6 @@ flowchart LR
     subgraph Storage
         PG["PostgreSQL"]
         ES["Elasticsearch"]
-        R["Redis"]
         SS["Storage Sink"]
     end
     subgraph Experience
@@ -62,14 +61,11 @@ flowchart LR
     K --> SS
     SS --> PG
     SS --> ES
-    SS --> R
     AE --> PG
     TI --> PG
     TI --> ES
-    TI --> R
     API --> PG
     API --> ES
-    API --> R
     UI --> API
     PR --> API
     PR --> ML
@@ -113,7 +109,7 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     A["ML predictions + analytics"] --> B["Rule Evaluation"]
-    B --> C["Redis Deduplication"]
+    B --> C["PostgreSQL Cooldown Deduplication"]
     C --> D["Incident Correlation"]
     D --> E["PostgreSQL Alerts/Incidents"]
     D --> F["Elasticsearch Alerts/Incidents"]
@@ -134,7 +130,7 @@ flowchart TD
     E --> F
     F --> G["Entity Profiles"]
     F --> H["Attack Timelines"]
-    G --> I["PostgreSQL + Redis + Elasticsearch"]
+    G --> I["PostgreSQL + Elasticsearch"]
     H --> I
     I --> J["Threat Intelligence APIs"]
     J --> K["XDR Dashboard Pages"]
@@ -157,8 +153,6 @@ flowchart TD
     A["Kafka Topics"] --> B["Storage Sink"]
     B --> C["PostgreSQL structured tables"]
     B --> D["Elasticsearch search indexes"]
-    B --> E["Redis latest-value cache"]
     C --> F["FastAPI APIs"]
     D --> F
-    E --> F
 ```

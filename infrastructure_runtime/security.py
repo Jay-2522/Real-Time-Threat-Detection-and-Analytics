@@ -50,15 +50,6 @@ def elasticsearch_options(host=None):
     return {'basic_auth': (value['username'], value['password']), 'ca_certs': value['ca_certs'], 'verify_certs': True}
 
 
-def redis_options():
-    value = section('redis')
-    if value is None: return {}
-    if not value.get('username') or not value.get('password') or not value.get('ssl_ca_certs'):
-        raise RuntimeError('Redis requires an ACL identity and a trusted CA')
-    return {'username':value['username'], 'password':value['password'],
-            'ssl_ca_certs':value['ssl_ca_certs'], 'ssl_cert_reqs':'required', 'ssl_check_hostname':True}
-
-
 def kafka_options():
     value = section('kafka')
     if value is None: return {}

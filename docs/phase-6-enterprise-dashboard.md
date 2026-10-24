@@ -7,7 +7,7 @@ No paid APIs, SaaS dashboards, cloud services, or paid UI libraries are used.
 ## Architecture
 
 ```text
-PostgreSQL + Elasticsearch + Redis
+PostgreSQL + Elasticsearch
     -> FastAPI dashboard APIs + WebSocket
     -> React + TypeScript + Tailwind + Recharts
     -> Real-time AI analytics interface
@@ -82,7 +82,7 @@ Uses the backend Elasticsearch-backed search API to inspect telemetry, analytics
 
 ### System Health
 
-Shows backend, PostgreSQL, Elasticsearch, Redis, Kafka observation state, Spark persistence state, and ML prediction persistence state.
+Shows backend, PostgreSQL, Elasticsearch, Kafka observation state, Spark persistence state, and ML prediction persistence state.
 
 ## Frontend Stack
 

@@ -2,7 +2,7 @@
 
 Scope: ML inference, storage sink, and alert engine, from the Phase 2A cutover.
 This is at-least-once consumption with transactional deduplication, not end-to-end
-exactly-once delivery. PostgreSQL is authoritative; search and caches converge
+exactly-once delivery. PostgreSQL is authoritative; search converges
 through a durable outbox. Feature contract 2.0 and its 18 inputs are unchanged.
 
 ## Defects and corrections
@@ -11,9 +11,9 @@ through a durable outbox. Feature contract 2.0 and its 18 inputs are unchanged.
 | --- | --- | --- |
 | Each service's `app/consumers/*_consumer.py` | Auto commits could advance while processing failed; caught exceptions allowed later records to continue | Disable automatic commit/store; one in-flight record; synchronous commit only after success; exit on failure |
 | ML consumer | `produce`/`flush` did not prove delivery; random prediction IDs changed on retry | Require successful delivery callback and empty queue; deterministic prediction identity |
-| Storage consumer/repository | Crash after SQL commit or replay inserted another row; ES/Redis errors were swallowed | Receipt, business row and outbox committed in one SQL transaction |
-| Alert consumer/service | DB errors swallowed; Redis cooldown was neither durable nor concurrency-safe | SQL receipt and correlation advisory lock; alert, incident, link and outbox in one transaction |
-| Both indexing/cache adapters | A failed external write was forgotten; unavailable-at-startup flags prevented recovery | Independent persistent retry worker; deterministic ES IDs and Redis projection markers |
+| Storage consumer/repository | Crash after SQL commit or replay inserted another row; Elasticsearch errors were swallowed | Receipt, business row and outbox committed in one SQL transaction |
+| Alert consumer/service | DB errors were swallowed and cooldown handling was not concurrency-safe | SQL receipt and correlation advisory lock; alert, incident, link and outbox in one transaction |
+| Search index adapters | A failed external write was forgotten; unavailable-at-startup flags prevented recovery | Independent persistent retry worker with deterministic Elasticsearch IDs |
 | Consumer parsing | Malformed input could disappear without durable disposition | Confirmed ML Kafka DLQ, storage SQL deadletter, alert SQL quarantine |
 
 ## Identity and transaction boundaries
@@ -35,7 +35,7 @@ through a durable outbox. Feature contract 2.0 and its 18 inputs are unchanged.
   A crash after publication but before input commit can publish another message;
   downstream SQL receipts prevent duplicate business effects.
 - Storage/alerts acknowledge after the SQL transaction, including pending external
-  work, commits. No transaction spans Kafka, PostgreSQL, Elasticsearch and Redis.
+  work, commits. No transaction spans Kafka, PostgreSQL, and Elasticsearch.
   Kafka transactions alone would not make the latter systems atomic.
 
 ## Retry, shutdown and observability
@@ -51,9 +51,7 @@ The outbox worker locks due rows with `FOR UPDATE SKIP LOCKED`. It marks success
 only after the effect returns. Failures retain payload/error/attempts with
 exponential delay (2–256 seconds). Busy batches continue immediately; idle workers
 wait two seconds. A crash after the effect repeats it safely: ES overwrites the
-same ID; a Redis Lua marker prevents repeated increments/list entries. Latest-cache
-versions prevent older retries overwriting newer values. Redis is not the durable
-deduplication authority.
+same ID. Elasticsearch versioning prevents older incident retries overwriting newer values.
 
 Monitor Kafka group lag, `pipeline_processing_failures_total`,
 `pipeline_commits_total`, `pipeline_rebalances_total`, `pipeline_outbox_pending`,
@@ -98,16 +96,16 @@ logical identity; retain the original quarantine for investigation.
 Permanent tests: `tests/reliability/` exercises real Kafka/PostgreSQL database-session
 termination, process exit after SQL commit but before acknowledgement, restart,
 duplicate delivery, actual revocation, concurrent alert writes, invalid-input
-quarantine, and failed Kafka delivery. Real ES/Redis connection failures leave
-pending outbox rows; restoring endpoints completes them, and repeated effects
-retain one document/counter increment. These tests use unique local topics/groups
+quarantine, and failed Kafka delivery. Real Elasticsearch connection failures leave
+pending outbox rows; restoring the endpoint completes them, and repeated effects
+retain one document. These tests use unique local topics/groups
 and records, and intentionally do not delete existing data or reset groups.
 
 ```sh
 PIPELINE_INTEGRATION=1 SPARK_CONTRACT_OUTPUT=/path/to/spark-contract.json python -m pytest
 ```
 
-Integration tests require the existing local Kafka, PostgreSQL, ES, Redis and
+Integration tests require the existing local Kafka, PostgreSQL, Elasticsearch and
 contract-v2 model artifacts. Without the environment flag, integration skips are
 explicit; they do not constitute reliability validation. Phase 1's Spark test
 runs separately with Spark 3.5.3 and exports the contract fixture.
@@ -117,11 +115,10 @@ Known limits:
 - Existing duplicates, missing historical search documents and legacy random-ID
   predictions are not repaired. Old and new ML identities cannot be equated
   retroactively. Backfill prevents re-inserting identifiable historical inputs.
-- Receipts and Redis markers must outlive the replay horizon. No automatic pruning
+- Receipts must outlive the replay horizon. No automatic pruning
   is introduced. Outbox/quarantine retention and capacity need operational policy.
-- Redis loss/eviction or script resource failures can invalidate cache counters;
-  PostgreSQL remains correct. Redis Cluster is not supported by this multi-key Lua
-  projection. Search/cache updates are eventual, not atomic with SQL.
+- Search updates are eventual, not atomic with SQL; PostgreSQL remains correct
+  while the Elasticsearch outbox retries.
 - Kafka retention bounds recovery. This development broker is single-node; these
   changes do not establish broker high availability or disaster recovery.
 - A poison infrastructure/schema failure blocks the affected consumer until fixed;
@@ -162,8 +159,7 @@ processing; no cross-system exactly-once transaction is claimed.
   not repeat IOC/rule-hit inserts or increment durable entity/timeline counters.
 - Threat search failures propagate to the outbox instead of being swallowed or
   permanently disabled after a startup failure. Partial multi-index completion is
-  retried using deterministic document IDs. Redis IOC cache failure remains optional
-  and cannot authorize a durable acknowledgement on failed SQL.
+  retried using deterministic document IDs.
 - Hardened bootstrap grants the threat identity access only to its own receipt/
   outbox/quarantine rows through row policies. Kafka provisioning adds **literal
   read ACLs for `analytics.enriched.events` and `analytics.risk.metrics`**, matching
@@ -185,7 +181,7 @@ new deterministic identities.
 ### Failure evidence and operational checks
 
 The permanent hardened recovery tests use a separate Docker VM/project with mTLS,
-SQL/search TLS, Redis ACLs, row-scoped roles and protected HTTP access. They cover
+SQL/search TLS, row-scoped roles and protected HTTP access. They cover
 actual driver/worker process loss, unavailable dependencies, outbox interruption,
 confirmed/failed Kafka publication and duplicate delivery. Expected logical counts
 are established before input publication; checkpoints, Kafka coordinates, identities
@@ -204,40 +200,11 @@ Retained outbox errors/attempts and repeated process restarts require investigat
 Use the already documented pending-outbox queries. Restore the failed dependency,
 then restart exited **isolated/hardened** services without resetting their groups.
 A completed effect whose SQL acknowledgement was lost may run again; deterministic
-ES IDs and intact Redis markers prevent duplicate business effects. Phase 4A
-found that Redis 7.4.11 AOF replay can lose those markers and cache counters under
-the retained ACLs, despite completed outbox rows. SQL receipt/business uniqueness
-remains intact, but cache restart correctness is blocked; see the Redis blocker in
-[Spark recovery](SPARK_RECOVERY.md). Do not equate an empty outbox or a healthy
-Redis process with a reconciled cache. Search/cache are
-allowed to be temporarily inconsistent while pending work retries. Pending work
+ES IDs and SQL receipt/business uniqueness prevent duplicate business effects.
+Search is allowed to be temporarily inconsistent while pending work retries. Pending work
 that never converges is a release blocker, not a successful recovery.
 
 Do not run the legacy `PIPELINE_INTEGRATION` tests against preserved development
 endpoints to manufacture broader coverage. Keep those exclusions explicit. A
 single-node KRaft broker, one Docker host and a small functional test VM do not
 establish broker quorum HA, host-loss recovery or production throughput capacity.
-
-
-### Phase 4B Redis projection recovery
-
-Completed outbox effects can be lost by a later cache failure. They remain in the
-SQL ledger and are now included in bounded reconstruction; `done=true` does not
-certify Redis persistence. Alert/storage workers share a per-service PostgreSQL
-advisory lock with reconstruction before selecting outbox work. Rebuild uses
-absolute values and original markers, never globally resets `done`, and allows
-new SQL ingestion to enqueue pending effects while cache promotion is controlled.
-
-New Redis payloads persist `_cache_expires_at` at enqueue; storage also persists
-its timestamp fallback once. The expiry is not refreshed by retries. Metadata is
-excluded from cached alert payloads. Legacy unknown expiry/timestamp fails repair
-and requires an explicit migration policy on copies. Critical display history now
-uses timestamp/alert identity order (maximum 51), which can be reconstructed from
-durable payloads. No session/throttle state is rebuilt. PostgreSQL receipts and
-uniqueness remain the correctness authority during cache loss.
-
-The hardened fixed runtime, replay evidence, projection dimensions, operating
-budgets, monitoring and backup/rollback procedure are in
-[SPARK_RECOVERY.md](SPARK_RECOVERY.md#phase-4b-redis-recovery-contract-18-october-2026).
-API cache connectivity stays degraded without a correctness guarantee; persisted
-results use SQL. Retain the complete Redis outbox ledger through the replay horizon.
