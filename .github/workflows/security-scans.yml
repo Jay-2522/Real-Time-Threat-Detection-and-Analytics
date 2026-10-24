@@ -98,29 +98,30 @@ jobs:
   trivy:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      TRIVY_IMAGE: aquasec/trivy:0.68.2
     steps:
       - uses: actions/checkout@v6
-      - name: Install pinned Trivy
-        uses: aquasecurity/setup-trivy@e07451d2e059ed86c2870430ea286b3a9e0bf241
-        with:
-          version: v0.68.2
-          cache: true
-      - name: Create disposable build configuration
-        run: python3 scripts/setup_local.py
-      - name: Build application images
-        run: docker compose build
       - name: Scan repository filesystem
         continue-on-error: true
         run: |
           mkdir -p scan-results/trivy
-          trivy filesystem --scanners vuln,misconfig,secret --format json --output scan-results/trivy/filesystem.json --exit-code 1 .
+          docker run --rm -v "$PWD:/workspace" "$TRIVY_IMAGE" filesystem \
+            --scanners vuln,misconfig,secret --format json \
+            --output /workspace/scan-results/trivy/filesystem.json --exit-code 1 /workspace
+      - name: Create disposable build configuration
+        run: python3 scripts/setup_local.py
+      - name: Build application images
+        run: docker compose build
       - name: Scan stack container images
         continue-on-error: true
         run: |
           status=0
           while IFS= read -r image; do
             output=$(echo "$image" | tr '/:@' '---')
-            trivy image --format json --output "scan-results/trivy/image-${output}.json" --exit-code 1 "$image" || status=1
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/workspace" \
+              "$TRIVY_IMAGE" image --format json \
+              --output "/workspace/scan-results/trivy/image-${output}.json" --exit-code 1 "$image" || status=1
           done < <(docker compose config --images | sort -u)
           exit "$status"
       - name: Summarize Trivy findings
