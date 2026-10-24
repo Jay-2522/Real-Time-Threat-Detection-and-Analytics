@@ -1,0 +1,79 @@
+name: Stack Smoke
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: stack-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  clean-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check runner resources
+        run: |
+          cpus=$(nproc)
+          memory_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+          disk_gib=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
+          {
+            echo "### Runner resources"
+            echo "- CPUs: ${cpus}"
+            echo "- Memory: $((memory_kib / 1024)) MiB"
+            echo "- Root disk available: ${disk_gib} GiB"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if (( cpus < 4 || memory_kib < 14000000 || disk_gib < 20 )); then
+            echo "Full-stack smoke requires at least 4 CPUs, 14,000,000 KiB RAM, and 20 GiB free disk." >&2
+            exit 1
+          fi
+      - name: Create disposable local configuration
+        run: |
+          python3 scripts/setup_local.py
+          sed -i 's/^SYNTHETIC_PRODUCER_ENABLED=.*/SYNTHETIC_PRODUCER_ENABLED=false/' .env
+      - name: Build project images from an empty cache
+        run: |
+          docker builder prune --all --force
+          docker compose build --no-cache --pull
+      - name: Start and wait for the full stack
+        env:
+          SYNTHETIC_PRODUCER_ENABLED: "false"
+        run: scripts/start_full.sh
+      - name: Confirm producer and runtime model contracts
+        run: |
+          docker logs streaming-analytics-producer 2>&1 | grep -F synthetic_telemetry_producer_disabled
+          docker exec streaming-analytics-ml-inference python -c 'from app.config.settings import get_settings; from app.models.artifact_store import load_artifacts; from app.features.feature_definitions import FEATURE_COLUMNS; a=load_artifacts(get_settings().artifact_dir); assert a.model.n_features_in_ == a.scaler.n_features_in_ == len(FEATURE_COLUMNS) == 18; print("runtime_model_features=18")'
+      - name: Run lineage check
+        run: scripts/lineage_check.sh
+      - name: Replay synthetic Cowrie traffic with current timestamps
+        run: |
+          docker compose run --rm -T --no-deps \
+            -v "$PWD/data/samples:/samples:ro" \
+            telemetry-producer python -m app.main cowrie-replay \
+            --file /samples/cowrie-synthetic.json --time-shift
+      - name: Assert brute-force alert, incident, and dashboard visibility
+        run: scripts/assert_honeypot_detection.sh
+      - name: Capture failure diagnostics
+        if: failure()
+        run: |
+          mkdir -p ci-logs
+          docker compose ps --all > ci-logs/compose-ps.txt 2>&1 || true
+          docker compose logs --no-color > ci-logs/containers.log 2>&1 || true
+          docker info > ci-logs/docker-info.txt 2>&1 || true
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-smoke-logs-${{ github.run_id }}
+          path: ci-logs/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Stop disposable stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
