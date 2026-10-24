@@ -1,5 +1,4 @@
 from infrastructure_runtime.security import kafka_options
-from pipeline_runtime.cache_recovery import CacheReconciler
 from pipeline_runtime.durable import claim, enqueue, OutboxWorker, IdentityConflict
 from pipeline_runtime.identity import logical_key, quarantine
 from app.schemas.records import StorageRecord
@@ -16,7 +15,6 @@ from sqlalchemy.orm import sessionmaker
 from app.config.settings import StorageSinkSettings
 from app.config.topics import STORAGE_INPUT_TOPICS, TELEMETRY_DEADLETTER_EVENTS
 from app.elastic.indexer import ElasticsearchIndexer
-from app.redis_cache.cache import RedisCache
 from app.repositories.postgres_repository import PostgresStorageRepository
 from app.services.record_mapper import map_payload_to_record
 from app.utils.retry import retry_with_backoff
@@ -32,20 +30,17 @@ class StorageSinkConsumer:
         session_factory: sessionmaker,
         repository: PostgresStorageRepository,
         indexer: ElasticsearchIndexer,
-        cache: RedisCache,
     ) -> None:
         self._settings = settings
         self._session_factory = session_factory
         self._repository = repository
         self._indexer = indexer
-        self._cache = cache
         self._consumer: Consumer | None = None
         self._deadletter_producer: Producer | None = None
         self._running = True
         self._outbox = OutboxWorker(session_factory, "storage", {
             "elasticsearch": lambda key, payload: self._indexer.index(StorageRecord.model_validate(payload), key),
-            "redis": lambda key, payload: self._cache.update(StorageRecord.model_validate(payload), key, payload.get("_cache_expires_at")),
-        }, reconciler=CacheReconciler(session_factory, "storage", cache._client))
+        })
 
     def run(self) -> None:
         self._register_shutdown_handlers()
@@ -110,7 +105,6 @@ class StorageSinkConsumer:
             self._repository.persist(session, record)
             body = record.model_dump(mode="json")
             enqueue(session, "storage", key, "elasticsearch", body)
-            enqueue(session, "storage", key, "redis", body)
         RECORDS_PERSISTED_TOTAL.labels(record.record_kind).inc()
 
     def _handle_message(self, topic: str, payload: bytes | None, position=None) -> None:

@@ -4,7 +4,6 @@ from app.config.settings import get_settings
 from app.consumers.storage_consumer import StorageSinkConsumer
 from app.db.session import create_session_factory
 from app.elastic.indexer import ElasticsearchIndexer
-from app.redis_cache.cache import RedisCache
 from app.repositories.postgres_repository import PostgresStorageRepository
 from app.utils.logging import configure_logging
 from app.utils.metrics import start_metrics_server
@@ -24,15 +23,12 @@ def main() -> None:
 
     indexer = ElasticsearchIndexer(settings)
     indexer.initialize()
-    cache = RedisCache(settings)
-    cache.initialize()
 
     StorageSinkConsumer(
         settings=settings,
         session_factory=session_factory,
         repository=PostgresStorageRepository(),
         indexer=indexer,
-        cache=cache,
     ).run()
 
 

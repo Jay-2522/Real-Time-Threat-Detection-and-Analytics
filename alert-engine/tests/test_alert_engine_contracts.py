@@ -171,7 +171,6 @@ def test_repeated_condition_produces_exactly_one_alert(monkeypatch):
     monkeypatch.setattr(service_module, "enqueue", lambda *_args: None)
     service = service_module.AlertProcessingService(
         rules=Rules(),
-        deduplicator=object(),
         correlator=Correlator(),
         repository=repository,
         indexer=object(),

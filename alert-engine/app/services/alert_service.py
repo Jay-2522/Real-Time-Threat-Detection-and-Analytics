@@ -6,7 +6,6 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.dedup.redis_deduplicator import AlertDeduplicator
 from app.elastic.indexer import AlertIndexer
 from app.incidents.correlator import IncidentCorrelator
 from app.repositories.alert_repository import AlertRepository
@@ -20,14 +19,12 @@ class AlertProcessingService:
     def __init__(
         self,
         rules: AlertRulesEngine,
-        deduplicator: AlertDeduplicator,
         correlator: IncidentCorrelator,
         repository: AlertRepository,
         indexer: AlertIndexer,
         dedup_cooldown_seconds: int,
     ) -> None:
         self._rules = rules
-        self._deduplicator = deduplicator
         self._correlator = correlator
         self._repository = repository
         self._indexer = indexer
@@ -51,8 +48,7 @@ class AlertProcessingService:
             alert.incident_id = incident_id
             session.execute(update(Alert).where(Alert.alert_id == alert.alert_id).values(incident_id=incident_id))
             body = alert.model_dump(mode="json")
-            for target in ("elasticsearch", "redis"):
-                enqueue(session, "alert", digest(alert.alert_id), target, body)
+            enqueue(session, "alert", digest(alert.alert_id), "elasticsearch", body)
             emitted += 1
             ALERTS_GENERATED_TOTAL.labels(alert.severity).inc()
             if alert.severity == "critical":

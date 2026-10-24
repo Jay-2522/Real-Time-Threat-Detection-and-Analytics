@@ -1,7 +1,5 @@
-from infrastructure_runtime.security import redis_options
 import logging
 
-import redis
 from prometheus_client import start_http_server
 
 from app.config.settings import get_settings
@@ -22,16 +20,10 @@ def main() -> None:
     start_http_server(settings.metrics_port)
     logger.info("threat_metrics_started port=%s", settings.metrics_port)
     initialize_database()
-    try:
-        redis_client = redis.Redis.from_url(settings.redis_url, socket_connect_timeout=1, socket_timeout=1, **redis_options())
-        redis_client.ping()
-    except Exception:
-        redis_client = None
-        logger.warning("threat_redis_unavailable continuing_without_cache=true")
     consumer = ThreatIntelConsumer(
         settings=settings,
         session_factory=SessionLocal,
-        enricher=IOCEnricher(redis_client),
+        enricher=IOCEnricher(),
         rules=DetectionRuleEngine(settings.rules_path),
         scorer=ThreatScorer(),
         repository=ThreatRepository(),
