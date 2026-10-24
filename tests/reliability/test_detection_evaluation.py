@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from eval.data import header_findings, load_file
+from eval.detectors import production_model_coverage
 from eval.features import FEATURE_COLUMNS, aggregate_windows, assert_no_identity_leakage
 
 
@@ -146,3 +147,17 @@ def test_identity_columns_cannot_reach_models():
     assert not ({"source_ip", "source_port", "destination_ip", "flow_id", "timestamp"} & set(FEATURE_COLUMNS))
     with pytest.raises(ValueError, match="cannot reach a model"):
         assert_no_identity_leakage([*FEATURE_COLUMNS, "source_ip"])
+
+
+def test_production_model_coverage_uses_contract_v2_definition():
+    coverage = production_model_coverage()
+
+    assert coverage["contract_feature_count"] == 18
+    assert coverage["real_equivalent_count"] == 4
+    assert coverage["equivalents"] == {
+        "event_count": "flow_count",
+        "network_event_count": "flow_count",
+        "avg_network_bytes": "(total_fwd_bytes + total_bwd_bytes) / flow_count",
+        "unique_destination_ip_count": "distinct_destination_ips",
+    }
+    assert coverage["artifact_feature_count"] in (None, 18)

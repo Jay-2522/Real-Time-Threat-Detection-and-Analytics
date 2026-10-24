@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import runpy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
@@ -167,13 +167,17 @@ def production_model_coverage() -> dict[str, object]:
     }
     applicable = {name: equivalents[name] for name in production_features if name in equivalents}
     missing = [name for name in production_features if name not in applicable]
-    artifact = joblib.load(REPO_ROOT / "ml-models/artifacts/isolation_forest.joblib")
+    metadata_path = REPO_ROOT / "ml-models/artifacts/contract-v2/feature_metadata.json"
+    artifact_feature_count = None
+    if metadata_path.is_file():
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        artifact_feature_count = len(metadata.get("feature_columns", []))
     return {
         "contract_feature_count": len(production_features),
         "real_equivalent_count": len(applicable),
         "equivalents": applicable,
         "missing": missing,
-        "artifact_feature_count": int(artifact.n_features_in_),
+        "artifact_feature_count": artifact_feature_count,
         "can_evaluate": False,
         "reason": "Missing production telemetry features; filling them would invent values.",
     }
