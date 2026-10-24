@@ -1,0 +1,112 @@
+name: Fast Checks
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: fast-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements-test.txt
+            **/requirements*.txt
+      - name: Install test and lint dependencies
+        run: pip install -r requirements-test.txt ruff==0.9.10
+      - name: Check tracked data safety
+        run: scripts/check_data_safety.sh
+      - name: Check shell syntax
+        run: find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+      - name: Lint Python correctness
+        run: ruff check --select E9,F63,F7,F82 .
+      - name: Test dataset-independent evaluation
+        run: pytest -q tests/reliability/test_detection_evaluation.py
+      - name: Test Python services
+        run: pytest -q
+      - name: Test storage sink package
+        run: pytest -q storage-sink/tests
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: streaming_analytics
+          POSTGRES_USER: streaming_user
+          POSTGRES_PASSWORD: ci-disposable-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U streaming_user -d streaming_analytics"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql+psycopg://streaming_user:ci-disposable-password@127.0.0.1:5432/streaming_analytics
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGDATABASE: streaming_analytics
+      PGUSER: streaming_user
+      PGPASSWORD: ci-disposable-password
+      POSTGRES_DB: streaming_analytics
+      POSTGRES_USER: streaming_user
+      POSTGRES_PASSWORD: ci-disposable-password
+      POSTGRES_INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+      - run: pip install -r requirements-test.txt
+      - name: Create representative schema
+        env:
+          PYTHONPATH: backend
+        run: python -c 'from sqlalchemy import create_engine; from app.db.models import Base; import os; Base.metadata.create_all(create_engine(os.environ["DATABASE_URL"]))'
+      - name: Test additive authentication migration
+        run: pytest -q backend/tests/test_auth_migration.py
+
+  frontend-and-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+      - name: Install frontend
+        run: npm ci --prefix frontend
+      - name: Lint frontend
+        run: npm --prefix frontend run lint
+      - name: Test frontend
+        run: npm --prefix frontend test
+      - name: Build frontend
+        run: npm --prefix frontend run build
+      - name: Install browser test dependencies
+        run: |
+          pip install -r requirements-test.txt
+          python -m playwright install --with-deps chromium
+      - name: Test real browser authentication
+        env:
+          AUTH_BROWSER_INTEGRATION: "1"
+        run: pytest -q backend/tests/test_auth_browser.py
