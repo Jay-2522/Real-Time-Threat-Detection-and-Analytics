@@ -101,12 +101,6 @@ def test_model_input_count_must_match_feature_contract(tmp_path):
         store.validate_artifacts(artifacts)
 
 
-def test_legacy_real_artifact_is_rejected():
-    store = load_ml_module("app.models.artifact_store")
-    with pytest.raises(ValueError, match="Incompatible"):
-        store.load_artifacts(Path(__file__).parents[1] / "artifacts")
-
-
 def test_consumer_preserves_metadata_and_routes_invalid_window_to_dlq(tmp_path):
     settings = train(tmp_path)
     store = load_ml_module("app.models.artifact_store")

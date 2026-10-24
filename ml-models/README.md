@@ -29,7 +29,7 @@ ml-models/
     consumers/   Kafka inference consumer
     utils/       Logging and retry helpers
     main.py      Runtime entrypoint
-  artifacts/     Local model artifacts
+  artifacts/contract-v2/  Generated production-contract model artifacts
   notebooks/     Reserved exploratory workspace
 ```
 
@@ -43,10 +43,10 @@ docker compose run --rm ml-inference python -m app.training.train_model
 
 Generated artifacts:
 
-- `artifacts/isolation_forest.joblib`
-- `artifacts/feature_scaler.joblib`
-- `artifacts/feature_metadata.json`
-- `artifacts/training_metrics.json`
+- `artifacts/contract-v2/isolation_forest.joblib`
+- `artifacts/contract-v2/feature_scaler.joblib`
+- `artifacts/contract-v2/feature_metadata.json`
+- `artifacts/contract-v2/training_metrics.json`
 
 ## Inference
 

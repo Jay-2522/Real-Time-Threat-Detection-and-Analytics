@@ -67,14 +67,10 @@ eval/results/*
 !eval/results/latest.md
 
 # Generated artifacts
-ml-models/artifacts/*.joblib
-ml-models/artifacts/*.pkl
-ml-models/artifacts/*.parquet
-ml-models/artifacts/training_metrics.json
 *.tmp
 *.bak
 
-# Generated contract-v2 models (legacy tracked baseline artifacts are retained)
+# Generated contract-v2 models
 ml-models/artifacts/contract-v2/
 
 .secrets/
