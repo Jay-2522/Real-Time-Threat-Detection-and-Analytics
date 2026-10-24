@@ -10,7 +10,7 @@ query() {
 }
 
 while (( $(date +%s) < deadline )); do
-  alert_count=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND raw_payload->'rule_hits' @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb;")
+  alert_count=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb;")
   incident_count=$(query "SELECT count(*) FROM incidents WHERE raw_payload->>'entity_id' = '${SOURCE_IP}';")
   if (( alert_count >= 1 && incident_count == 1 )); then
     break
@@ -23,7 +23,7 @@ if (( alert_count < 1 || incident_count != 1 )); then
   exit 1
 fi
 
-alert_id=$(query "SELECT alert_id FROM alerts WHERE entity_id = '${SOURCE_IP}' AND raw_payload->'rule_hits' @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb ORDER BY created_at DESC LIMIT 1;")
+alert_id=$(query "SELECT alert_id FROM alerts WHERE entity_id = '${SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb ORDER BY created_at DESC LIMIT 1;")
 incident_id=$(query "SELECT incident_id FROM incidents WHERE raw_payload->>'entity_id' = '${SOURCE_IP}' ORDER BY updated_at DESC LIMIT 1;")
 incident_events=$(query "SELECT event_count FROM incidents WHERE incident_id = '${incident_id}';")
 
