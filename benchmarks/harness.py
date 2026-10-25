@@ -197,11 +197,14 @@ def run_once(config: RunConfig) -> dict[str, Any]:
         ),
         make_producer("127.0.0.1:9092"),
     )
+    sampler.stop()
     drain_seconds, drained = _wait_for_drain(config.drain_timeout_seconds, capture, load.delivered)
     time.sleep(5)
-    sampler.stop()
     capture.stop()
     resources, lag = sampler.summary()
+    final_lag = _current_lag()
+    for group, value in final_lag.items():
+        lag.setdefault(group, {"max": value, "final": value})["after_drain"] = value
     database = _database_summary(capture, load.delivered, config.watermark_seconds)
     return {
         "config": asdict(config),
@@ -213,6 +216,13 @@ def run_once(config: RunConfig) -> dict[str, Any]:
         "drained": drained,
         "database": database,
         "kafka_latency_seconds": capture.kafka_latency_summary(),
+        "watermark_coverage": capture.watermark_coverage(config.watermark_seconds),
+        "capture_counts": {
+            "raw": len(capture.raw),
+            "enriched": len(capture.enriched),
+            "features": len(capture.features),
+            "predictions": len(capture.predictions),
+        },
         "consumer_lag": lag,
         "resources": resources,
         "capture_errors": len(capture.errors),

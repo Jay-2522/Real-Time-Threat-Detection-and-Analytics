@@ -192,6 +192,8 @@ def consume(
     consumer.subscribe(sorted(RAW_TOPICS))
     engine = PlainWindowEngine(watermark_seconds)
     started = time.monotonic()
+    first_received = None
+    last_received = None
     consumed = 0
     try:
         while consumed < expected_events and time.monotonic() - started < timeout_seconds:
@@ -203,11 +205,15 @@ def consume(
                     raise RuntimeError(str(message.error()))
                 continue
             payload = json.loads(message.value())
+            received = time.monotonic()
+            first_received = received if first_received is None else first_received
+            last_received = received
             engine.add(payload, int(message.timestamp()[1]))
             consumed += 1
     finally:
         consumer.close()
-    elapsed = max(time.monotonic() - started, 1e-9)
+    elapsed = max((last_received or started) - (first_received or started), 1e-9)
+    achieved = (consumed - 1) / elapsed if consumed > 1 else consumed / elapsed
     latencies = [float(row["benchmark_latency_seconds"]) for row in engine.emitted]
     return (
         ConsumerResult(
@@ -215,7 +221,7 @@ def consume(
             late_events=engine.late_events,
             emitted_windows=len(engine.emitted),
             elapsed_seconds=elapsed,
-            achieved_rate=consumed / elapsed,
+            achieved_rate=achieved,
             latency_seconds=summarize(latencies),
         ),
         engine.emitted,

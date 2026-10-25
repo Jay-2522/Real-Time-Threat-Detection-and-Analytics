@@ -218,6 +218,10 @@ def run_feature_engine(config: RunConfig, mode: str, *, shared_python: bool = Fa
             ),
             make_producer("127.0.0.1:9092"),
         )
+        if runtime_sampler:
+            runtime_sampler.stop()
+        if process_sampler:
+            process_sampler.stop()
 
         drained = True
         if capture:
@@ -237,11 +241,6 @@ def run_feature_engine(config: RunConfig, mode: str, *, shared_python: bool = Fa
             if plain_process.returncode != 0:
                 stderr = plain_process.stderr.read() if plain_process.stderr else ""
                 raise RuntimeError(f"Plain consumer failed ({plain_process.returncode}): {stderr}")
-        if runtime_sampler:
-            runtime_sampler.stop()
-        if process_sampler:
-            process_sampler.stop()
-
         plain_payload = json.loads(plain_output.read_text()) if plain_output.exists() else None
         resources = {}
         lag = {}

@@ -102,7 +102,7 @@ def fingerprint(payload: dict[str, Any]) -> tuple[str, ...]:
 class TopicCapture:
     bootstrap_servers: str
     group_id: str
-    raw: dict[str, int] = field(default_factory=dict)
+    raw: dict[str, tuple[int, float]] = field(default_factory=dict)
     enriched: dict[str, int] = field(default_factory=dict)
     features: dict[tuple[str, ...], tuple[int, dict[str, Any]]] = field(default_factory=dict)
     predictions: dict[tuple[str, ...], tuple[int, dict[str, Any]]] = field(default_factory=dict)
@@ -143,7 +143,10 @@ class TopicCapture:
                     timestamp_ms = int(message.timestamp()[1])
                     topic = message.topic()
                     if topic in RAW_TOPICS:
-                        self.raw[str(payload["event_id"])] = timestamp_ms
+                        self.raw[str(payload["event_id"])] = (
+                            timestamp_ms,
+                            parse_datetime(str(payload["timestamp"])).timestamp(),
+                        )
                     elif topic == "analytics.enriched.events":
                         self.enriched[str(payload["event_id"])] = timestamp_ms
                     elif topic == "analytics.feature.engineering":
@@ -157,7 +160,7 @@ class TopicCapture:
 
     def kafka_latency_summary(self) -> dict[str, dict[str, float | int | None]]:
         raw_to_enriched = [
-            (timestamp - self.raw[event_id]) / 1000
+            (timestamp - self.raw[event_id][0]) / 1000
             for event_id, timestamp in self.enriched.items()
             if event_id in self.raw
         ]
@@ -174,6 +177,39 @@ class TopicCapture:
             "raw_to_enriched": summarize(raw_to_enriched),
             "enriched_to_feature": summarize(enriched_to_feature),
             "feature_to_prediction": summarize(feature_to_prediction),
+        }
+
+    def watermark_coverage(self, watermark_seconds: int) -> dict[str, int | float | None]:
+        if not self.raw:
+            return {
+                "out_of_order_events": 0,
+                "eligible_event_window_memberships": 0,
+                "observed_event_window_memberships": 0,
+                "missing_event_window_memberships": 0,
+                "missing_membership_rate": None,
+            }
+        max_event_epoch = max(event_epoch for _broker, event_epoch in self.raw.values())
+        watermark = max_event_epoch - watermark_seconds
+        expected = set()
+        out_of_order = 0
+        for event_id, (broker_ms, event_epoch) in self.raw.items():
+            out_of_order += int(broker_ms / 1000 - event_epoch > 1.0)
+            latest = int(event_epoch // 30) * 30
+            for start in (latest - 30, latest):
+                if start + 60 <= watermark:
+                    expected.add((event_id, start))
+        observed = set()
+        for _ids, (_timestamp, payload) in self.features.items():
+            start = int(parse_datetime(payload["window_start"]).timestamp())
+            observed.update((str(event_id), start) for event_id in payload.get("source_event_ids") or [])
+        matched = expected & observed
+        missing = len(expected - observed)
+        return {
+            "out_of_order_events": out_of_order,
+            "eligible_event_window_memberships": len(expected),
+            "observed_event_window_memberships": len(matched),
+            "missing_event_window_memberships": missing,
+            "missing_membership_rate": missing / len(expected) if expected else None,
         }
 
 

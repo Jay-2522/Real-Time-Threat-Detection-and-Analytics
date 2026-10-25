@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from benchmarks.measurements import parse_consumer_lag, parse_memory_mib, percentile, window_latency_parts
+from benchmarks.measurements import TopicCapture, parse_consumer_lag, parse_memory_mib, percentile, window_latency_parts
 
 
 def test_latency_percentile_interpolates_without_selecting_best_run():
@@ -30,3 +30,22 @@ storage telemetry.login.events 1 20 22 2 id host client
 alerts analytics.enriched.events 0 8 8 0 id host client
 """
     assert parse_consumer_lag(output) == {"storage": 7, "alerts": 0}
+
+
+def test_watermark_coverage_counts_missing_closed_window_memberships():
+    capture = TopicCapture("unused", "unused")
+    capture.raw = {
+        "one": (1_000_000, datetime(2026, 10, 26, 12, 0, 10, tzinfo=UTC).timestamp()),
+        "marker": (1_001_000, datetime(2026, 10, 26, 12, 2, 10, tzinfo=UTC).timestamp()),
+    }
+    capture.features = {
+        ("one",): (
+            1_002_000,
+            {"window_start": "2026-10-26T12:00:00Z", "source_event_ids": ["one"]},
+        )
+    }
+    result = capture.watermark_coverage(30)
+    assert result["eligible_event_window_memberships"] == 2
+    assert result["observed_event_window_memberships"] == 1
+    assert result["missing_event_window_memberships"] == 1
+    assert result["missing_membership_rate"] == 0.5
