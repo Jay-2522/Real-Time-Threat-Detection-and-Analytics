@@ -85,13 +85,14 @@ def _current_lag() -> dict[str, int]:
     return parse_consumer_lag(output)
 
 
-def _wait_for_drain(timeout_seconds: int) -> tuple[float, bool]:
+def _wait_for_drain(timeout_seconds: int, capture: TopicCapture, expected_events: int) -> tuple[float, bool]:
     started = time.monotonic()
     zero_observations = 0
     while time.monotonic() - started < timeout_seconds:
         lag = _current_lag()
         relevant = {group: value for group, value in lag.items() if not group.startswith("benchmark-capture-")}
-        if relevant and all(value == 0 for value in relevant.values()):
+        spark_caught_up = len(capture.enriched) >= expected_events
+        if relevant and all(value == 0 for value in relevant.values()) and spark_caught_up:
             zero_observations += 1
             if zero_observations >= 3:
                 return time.monotonic() - started, True
@@ -196,7 +197,7 @@ def run_once(config: RunConfig) -> dict[str, Any]:
         ),
         make_producer("127.0.0.1:9092"),
     )
-    drain_seconds, drained = _wait_for_drain(config.drain_timeout_seconds)
+    drain_seconds, drained = _wait_for_drain(config.drain_timeout_seconds, capture, load.delivered)
     time.sleep(5)
     sampler.stop()
     capture.stop()
