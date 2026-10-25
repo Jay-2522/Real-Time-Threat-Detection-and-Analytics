@@ -48,7 +48,6 @@ GRAFANA_CHECK = ("Grafana", f"http://localhost:{local_value('GRAFANA_PUBLISHED_P
 TCP_CHECKS = [
     ("Kafka", "localhost", 9092),
     ("PostgreSQL", "localhost", int(local_value("POSTGRES_PUBLISHED_PORT", "5432"))),
-    ("Redis", "localhost", 6379),
 ]
 
 

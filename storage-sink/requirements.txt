@@ -4,6 +4,5 @@ SQLAlchemy==2.0.36
 psycopg[binary]==3.2.3
 confluent-kafka==2.5.3
 elasticsearch==8.17.0
-redis==5.2.1
 python-dotenv==1.2.4
 prometheus-client==0.21.1

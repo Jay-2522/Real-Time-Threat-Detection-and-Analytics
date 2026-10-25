@@ -17,8 +17,6 @@ class StorageSinkSettings(BaseSettings):
     postgres_user: str = Field(default="streaming_user", validation_alias="POSTGRES_USER")
     postgres_password: str = Field(default="streaming_password", validation_alias="POSTGRES_PASSWORD")
 
-    redis_host: str = Field(default="localhost", validation_alias="REDIS_HOST")
-    redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
     elasticsearch_host: str = Field(default="http://localhost:9200", validation_alias="ELASTICSEARCH_HOST")
     metrics_port: int = Field(default=9102, validation_alias="STORAGE_SINK_METRICS_PORT")
 

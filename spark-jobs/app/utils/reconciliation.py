@@ -133,15 +133,6 @@ def compare_identity_sets(sql_ids, search_ids, label="sql/search"):
     return [Discrepancy(x.record_identity, x.expected_behavior, x.observed_behavior, f"{label}:{x.reason}") for x in ledger]
 
 
-def cache_projection_gaps(records, expiring_kinds):
-    ledger = []
-    for record in records:
-        if record.get("kind") in expiring_kinds and not record.get("_cache_expires_at"):
-            identity = str(record.get("identity", "unknown"))
-            ledger.append(Discrepancy(identity, "durable absolute expiry", "missing", "redis_expiry_unknown"))
-    return ledger
-
-
 def durable_outbox_gaps(business_ids, outbox_ids):
     counts = Counter(outbox_ids)
     ledger = []
@@ -154,7 +145,7 @@ def durable_outbox_gaps(business_ids, outbox_ids):
 
 def validate_shadow_isolation(original, shadow):
     """Require every state and identity namespace to differ before replay."""
-    required = ("compose_project", "consumer_group", "checkpoint", "database", "elasticsearch_index", "redis_volume", "credential_set")
+    required = ("compose_project", "consumer_group", "checkpoint", "database", "elasticsearch_index", "credential_set")
     for field in required:
         if not original.get(field) or not shadow.get(field) or original[field] == shadow[field]:
             raise RecoveryBlocked(f"shadow {field} is absent or overlaps original state")

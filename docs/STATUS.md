@@ -26,7 +26,7 @@ $ DOCKER_CONTEXT=colima-phase4a-recovery python3 scripts/health_check.py
 Summary: degraded (11 OK, 1 failed)
 ```
 
-`docker-compose ... ps -a` reported **zookeeper, kafka, postgres, redis, and elasticsearch** healthy; `kafka-init` exited 0; `spark-streaming` was `Restarting (1)`. The other 13 long-running containers lack health checks: **UNVERIFIED**. Probes passed for the frontend and infrastructure plus ML/storage/alert/threat metrics, but processing did not: backend lacked `auth_control`, storage/alert waited for `pipeline_receipts`, and Spark could not download its Kafka connector:
+`docker-compose ... ps -a` reported **zookeeper, kafka, postgres, and elasticsearch** healthy; `kafka-init` exited 0; `spark-streaming` was `Restarting (1)`. The other long-running containers lacked health checks: **UNVERIFIED**. Probes passed for the frontend and infrastructure plus ML/storage/alert/threat metrics, but processing did not: backend lacked `auth_control`, storage/alert waited for `pipeline_receipts`, and Spark could not download its Kafka connector:
 
 ```text
 sqlalchemy.exc.ProgrammingError: relation "auth_control" does not exist
@@ -97,7 +97,6 @@ Verified inventory: `docker-compose --env-file .env -f docker-compose.yml config
 | kafka-init | Creates topics; fresh Kafka has no required topics. |
 | kafka-ui | Broker viewer; only the Kafka UI disappears. |
 | postgres | Durable records/auth; API, sinks, alerts, and threat persistence fail. |
-| redis | Dedup/cache; alert dedup and IOC cache degrade. |
 | elasticsearch | Search indexes; searches and secondary indexing fail. |
 | backend | FastAPI/auth; dashboard cannot sign in or query data. |
 | frontend | React UI; browser dashboard disappears. |
@@ -107,7 +106,7 @@ Verified inventory: `docker-compose --env-file .env -f docker-compose.yml config
 | spark-worker | Executes Spark work; distributed processing capacity disappears. |
 | spark-streaming | Enrichment/windows/features; ML receives no feature windows. |
 | ml-inference | Isolation Forest predictions; ML topic and ML-driven alerts stop. |
-| storage-sink | Kafka-to-Postgres/Redis/Elasticsearch persistence; main API datasets stay empty. |
+| storage-sink | Kafka-to-Postgres/Elasticsearch persistence; main API datasets stay empty. |
 | alert-engine | Rules, dedup, incidents; alerts/incidents stop. |
 | threat-intelligence-engine | Local IOC/rule/MITRE enrichment; threat pages stay empty. |
 | prometheus | Metric scraping; monitoring metrics and Grafana source disappear. |

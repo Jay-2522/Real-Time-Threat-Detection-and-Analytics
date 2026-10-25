@@ -172,12 +172,12 @@ from confluent_kafka import Producer,Consumer,TopicPartition
 from confluent_kafka.admin import AdminClient,NewTopic
 from sqlalchemy import create_engine,text
 from sqlalchemy.orm import sessionmaker
-from app.main import StorageSinkConsumer,PostgresStorageRepository,ElasticsearchIndexer,RedisCache,get_settings
+from app.main import StorageSinkConsumer,PostgresStorageRepository,ElasticsearchIndexer,get_settings
 from infrastructure_runtime.security import kafka_options
 from pipeline_runtime.kafka import CONSUMER_OPTIONS,DeliveryLoop,publish_confirmed
 from pipeline_runtime.identity import coordinate
 settings=get_settings();db=create_engine(settings.database_url,hide_parameters=True)
-sink=StorageSinkConsumer(settings,sessionmaker(db),PostgresStorageRepository(),ElasticsearchIndexer(settings),RedisCache(settings))
+sink=StorageSinkConsumer(settings,sessionmaker(db),PostgresStorageRepository(),ElasticsearchIndexer(settings))
 topic={topic!r};group={group!r}
 options={{'bootstrap.servers':'kafka:9092',**kafka_options()}}
 admin=json.loads(Path('/run/kafka-test/security.json').read_text())['kafka']

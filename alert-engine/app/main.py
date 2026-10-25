@@ -3,7 +3,6 @@ import logging
 from app.config.settings import get_settings
 from app.consumers.alert_consumer import AlertEngineConsumer
 from app.db.session import create_session_factory
-from app.dedup.redis_deduplicator import AlertDeduplicator
 from app.elastic.indexer import AlertIndexer
 from app.incidents.correlator import IncidentCorrelator
 from app.repositories.alert_repository import AlertRepository
@@ -23,14 +22,11 @@ def main() -> None:
     logger.info("starting_alert_engine kafka=%s postgres_host=%s", settings.kafka_bootstrap_servers, settings.postgres_host)
 
     session_factory = retry_with_backoff(lambda: create_session_factory(settings), logger, "PostgreSQL alert schema initialization")
-    deduplicator = AlertDeduplicator(settings)
-    deduplicator.initialize()
     indexer = AlertIndexer(settings)
     indexer.initialize()
 
     service = AlertProcessingService(
         rules=AlertRulesEngine(),
-        deduplicator=deduplicator,
         correlator=IncidentCorrelator(settings),
         repository=AlertRepository(),
         indexer=indexer,

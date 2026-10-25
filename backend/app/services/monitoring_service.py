@@ -1,5 +1,4 @@
 from __future__ import annotations
-from infrastructure_runtime.security import redis_options
 from infrastructure_runtime.security import elasticsearch_options
 
 import json
@@ -11,7 +10,6 @@ from urllib.request import Request, urlopen
 import base64
 from infrastructure_runtime.security import section
 
-import redis
 from elasticsearch import Elasticsearch
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -54,7 +52,6 @@ class MonitoringService:
         now = self._now()
         prometheus_targets = self._prometheus_targets()
         db_status = self._postgres_status(db, now)
-        redis_status = self._redis_status(now)
         elastic_status = self._elasticsearch_status(now)
         service_specs = [
             ("backend", "Backend API", "api", "http://localhost:8000/metrics"),
@@ -69,7 +66,6 @@ class MonitoringService:
         services.extend(
             [
                 db_status,
-                redis_status,
                 elastic_status,
                 ServiceHealth(name="Kafka", status="observing", detail="Kafka is monitored indirectly through pipeline throughput and service consumers.", category="streaming", endpoint="localhost:9092", last_checked=now),
                 self._spark_status(prometheus_targets, now),
@@ -157,15 +153,6 @@ class MonitoringService:
         except SQLAlchemyError as exc:
             logger.warning("postgres_health_check_failed error=%s", exc)
             return ServiceHealth(name="PostgreSQL", status="down", detail="Database connection check failed.", category="storage", endpoint="localhost:5432", last_checked=checked_at)
-
-    def _redis_status(self, checked_at: datetime) -> ServiceHealth:
-        try:
-            client = redis.Redis.from_url(self._settings.redis_url, socket_connect_timeout=1, socket_timeout=1, **redis_options())
-            client.ping()
-            return ServiceHealth(name="Redis", status="degraded", detail="Redis connection ready; cache projections require SQL reconciliation. Persisted reads use PostgreSQL.", category="cache", endpoint="localhost:6379", last_checked=checked_at)
-        except Exception as exc:
-            logger.warning("redis_health_check_failed error=%s", exc)
-            return ServiceHealth(name="Redis", status="degraded", detail="Redis is unavailable; cache-backed monitoring is degraded.", category="cache", endpoint="localhost:6379", last_checked=checked_at)
 
     def _elasticsearch_status(self, checked_at: datetime) -> ServiceHealth:
         try:

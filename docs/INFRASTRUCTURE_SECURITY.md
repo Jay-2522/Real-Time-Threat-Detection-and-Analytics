@@ -11,7 +11,6 @@ ZooKeeper Kafka cluster to KRaft or copy historical application data.
 | Service | Development exposure/control | Hardened control |
 | --- | --- | --- |
 | PostgreSQL | Published port, password, no required TLS | Internal database network, verified TLS, SCRAM, four scoped runtime roles and pipeline row policies; schema administration is separate |
-| Redis | Published port, anonymous plaintext | Internal cache network, TLS, default user disabled, scoped service ACLs |
 | Elasticsearch | Published port, security disabled | Internal search network, HTTP/transport TLS, separate scoped service users |
 | Kafka | Published plaintext listeners, no client ACL enforcement | Internal messaging network, mTLS identities, default-deny topic/group ACLs, isolated KRaft state |
 | ZooKeeper | Development-only coordination service | Excluded; no automatic migration of historical Kafka state |
@@ -22,7 +21,7 @@ ZooKeeper Kafka cluster to KRaft or copy historical application data.
 | Prometheus | Published unauthenticated HTTP | Internal monitoring network; Basic authentication; backend scrape bearer token |
 | Grafana | Published HTTP administration | Internal monitoring network; file-based administrator password; anonymous access/signup disabled |
 
-The preserved development deployment publishes loopback ports 2181, 6379, 7077,
+The preserved development deployment publishes loopback ports 2181, 7077,
 8000, 8081–8082, 9090, 9092, 9101–9106, 9200, 13000, 15432 and 5173.
 They are not verified as Internet-accessible. Only `127.0.0.1:8443` is published
 by the separate hardened stack. Its certificate and CSP
@@ -64,7 +63,7 @@ python3 scripts/provision_messaging.py --directory "$HARDENED_SECRETS_DIR"
 docker compose -f deploy/hardened/compose.yml --profile '*' config --quiet
 docker compose -f deploy/hardened/compose.yml build
 docker compose -f deploy/hardened/compose.yml run --rm permissions
-docker compose -f deploy/hardened/compose.yml up -d postgres redis elasticsearch
+docker compose -f deploy/hardened/compose.yml up -d postgres elasticsearch
 # Wait for PostgreSQL and Elasticsearch to accept authenticated TLS connections.
 docker compose -f deploy/hardened/compose.yml run --rm bootstrap
 docker compose -f deploy/hardened/compose.yml up -d backend web prometheus grafana
@@ -107,7 +106,7 @@ fallbacks to bypass it. Certificate trust and hostname checks remain enabled.
 Rotation is an explicit maintenance operation: back up credentials and persistent
 state securely; issue replacement leaves with the same service SAN/principal;
 prepare new credential files; update server-side PostgreSQL roles, Elasticsearch
-users, Redis ACLs and monitoring credentials through their authenticated admin
+users and monitoring credentials through their authenticated admin
 interfaces; replace the matching client files; restart only affected hardened
 services and re-run verification. For CA rotation distribute both CA certificates
 before replacing leaves, then retire the old CA after all peers are verified.
@@ -122,7 +121,7 @@ cluster, preserving its checkpoint volume; never modify historical checkpoints.
 `GET /api/v1/health` and `/health/live` are public process-liveness probes.
 `GET /api/v1/health/ready` checks access to the authorization control row and alert
 schema using bounded PostgreSQL connections/statements; it returns 503 on database
-failure and never returns connection diagnostics. Redis/search/metrics are optional
+failure and never returns connection diagnostics. Search/metrics are optional
 for core persisted API reads and appear in authenticated detailed monitoring.
 
 Security tests intentionally create fixture accounts and stop the isolated
@@ -167,7 +166,6 @@ These are the captured **original image** counts; image tags can change.
 | grafana/grafana:11.3.0 | 9 | 138 |
 | postgres:16-alpine | 1 | 24 |
 | prom/prometheus:v2.55.1 | 4 | 106 |
-| redis:7.4-alpine | 0 | 2 |
 | streaming_analytics_system-alert-engine | 0 | 50 |
 | streaming_analytics_system-backend | 0 | 57 |
 | streaming_analytics_system-frontend | 2 | 79 |
@@ -216,7 +214,6 @@ Migration of the preserved worker is explicitly deferred and remains a blocker.
 | soc-hardened-spark | 8 | 165 |
 | soc-hardened-backend | 0 | 44 |
 | soc-hardened-postgres | 0 | 0 |
-| soc-hardened-redis | 0 | 0 |
 | soc-hardened-telemetry-producer | 0 | 44 |
 | soc-hardened-ml-inference | 0 | 44 |
 | soc-hardened-storage-sink | 0 | 44 |
@@ -227,8 +224,8 @@ Migration of the preserved worker is explicitly deferred and remains a blocker.
 | soc-hardened-web (nginx 1.28.3-r7) | 0 | 0 |
 | prom/prometheus:v2.55.1 (unchanged vendor image) | 4 | 106 |
 
-The web image retains one medium finding. PostgreSQL and Redis package upgrades
-and removal of PostgreSQL’s unused root-only gosu helper removed their high/critical
+The web image retains one medium finding. PostgreSQL package upgrades
+and removal of PostgreSQL’s unused root-only gosu helper removed its high/critical
 findings. All seven service requirement audits report zero known vulnerabilities
 on Python 3.11. This does not override the container/JAR/Go findings above.
 
@@ -272,7 +269,7 @@ CONDITIONAL PASS for the tested controls; production remediation remains incompl
   1 deselected**. The excluded tests were executed separately: **2 secured Kafka/Spark
   tests passed**, and the isolated crash/replay/continuation test passed in the earlier
   full run. All **98 collected tests** have successful evidence across these runs.
-- After tightening pipeline row policies and Redis key scopes, the focused hardened
+- After tightening pipeline row policies, the focused hardened
   suite passed **12/12** checks.
 - Actual Spark feature-contract suite: **5 passed**, also repeated successfully
   against the rebuilt development-compatible image.
@@ -710,34 +707,3 @@ AMD64 runtime verification and the previous capacity/operational release gates.
 A deployment/configuration change requires renewed assessment of these bounded
 classifications. No approval to release, migrate retained data or promote `main`
 is implied by this investigation.
-
-
-## Phase 4B scoped Redis change
-
-The hardened Redis build now pins the tested 8.4.7 Alpine input by digest; the
-preserved development Compose file and original Redis volume are unchanged.
-New provisioning keeps TLS-only transport, `user default off`, separate identities,
-existing key patterns and internal networks. Alert permissions add read-only
-LRANGE/TTL for list/counter verification; storage adds TTL. Neither runtime identity
-receives administrative or transaction commands. New Redis configuration states
-`appendfsync everysec` and refuses truncated AOF loading. The fixed EXEC replay path
-does not widen permissions for normal connected clients.
-
-The linux/arm64 built Redis image `07f8d9d5bdfc` was scanned with Trivy 0.76.0:
-**0 critical, 0 high, 0 medium, 0 low** known package findings. This covers this
-image and scanner database observation, not all source-level server defects or
-unchanged Spark/Kafka/monitoring findings. redis-py 5.2.1 is unchanged and exercised
-against the real upgraded server. AMD64 remains unverified. All-service release
-blockers and the prior critical/high findings above remain in effect.
-
-Application monitoring no longer labels Redis healthy/online from PING. It reports
-connection readiness separately and leaves projection correctness degraded; public
-liveness and SQL/auth readiness reveal no Redis diagnostics. Reconciliation metrics
-and private service/startup logs provide bounded progress/failure evidence. A lease
-stored in Redis is telemetry, never authorization to trust a partially restored
-keyspace. Sessions, login throttles and durable deduplication stay in PostgreSQL.
-
-See the Phase 4B section of [SPARK_RECOVERY.md](SPARK_RECOVERY.md) for projection
-scope, unknown legacy expiry, scratch/replay budgets, opt-in tests, migration and
-rollback. There is no authorization to upgrade retained state in place or promote
-the tested configuration to production.

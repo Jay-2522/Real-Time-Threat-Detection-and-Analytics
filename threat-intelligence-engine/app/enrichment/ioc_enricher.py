@@ -4,8 +4,6 @@ import ipaddress
 import re
 from typing import Any
 
-import redis
-
 from app.schemas.threat import IOCFinding
 from app.utils.metrics import IOC_ENRICHMENTS_TOTAL
 
@@ -20,9 +18,6 @@ class IOCEnricher:
     tor_exit_nodes = {"185.220.101.1", "185.220.101.2", "45.83.64.1"}
     malware_hashes = {"44d88612fea8a8f36de82e1278abb02f", "e99a18c428cb38d5f260853678922e03"}
     watched_users = {"admin", "root", "svc_backup", "security_admin"}
-
-    def __init__(self, redis_client: redis.Redis | None = None) -> None:
-        self._redis = redis_client
 
     def enrich(self, payload: dict[str, Any]) -> tuple[list[IOCFinding], str | None, str | None]:
         text = str(payload)
@@ -42,7 +37,6 @@ class IOCEnricher:
         if country in self.high_risk_countries:
             findings.append(IOCFinding(value=str(country), ioc_type="country", feed_name="geo-risk-feed", confidence=0.64, severity="medium", description="Country is in local high-risk geography watchlist."))
         for finding in findings:
-            self._cache(finding)
             IOC_ENRICHMENTS_TOTAL.labels(finding.ioc_type, finding.severity).inc()
         return findings, str(country) if country else None, self._asn_for_payload(payload)
 
@@ -57,14 +51,6 @@ class IOCEnricher:
         if any(address in network for network in self.suspicious_ranges):
             findings.append(IOCFinding(value=value, ioc_type="ip", feed_name="suspicious-ip-ranges", confidence=0.78, severity="high", description="IP belongs to a suspicious local reputation range."))
         return findings
-
-    def _cache(self, finding: IOCFinding) -> None:
-        if not self._redis:
-            return
-        try:
-            self._redis.setex(f"ioc:{finding.ioc_type}:{finding.value}", 3600, finding.model_dump_json())
-        except Exception:
-            return
 
     @staticmethod
     def _asn_for_payload(payload: dict[str, Any]) -> str | None:

@@ -44,6 +44,5 @@ def test_production_transport_settings_fail_closed(tmp_path,monkeypatch):
     monkeypatch.setenv('SERVICE_SECURITY_FILE',str(path));security.configuration.cache_clear()
     with pytest.raises(RuntimeError,match='verified TLS'): security.database_url('unused')
     with pytest.raises(RuntimeError,match='mutually authenticated'): security.kafka_options()
-    with pytest.raises(RuntimeError,match='Missing required'): security.redis_options()
     with pytest.raises(RuntimeError,match='HTTPS'): security.elasticsearch_options('http://search:9200')
     security.configuration.cache_clear()

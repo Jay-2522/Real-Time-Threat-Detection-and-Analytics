@@ -1,6 +1,6 @@
 # Phase 5: Database And Search Architecture
 
-Phase 5 adds local-only persistence, search, caching, and query APIs. It uses free Docker Compose services only: PostgreSQL, Elasticsearch, Redis, and a Python storage sink that consumes Kafka streams and writes durable/queryable records.
+Phase 5 adds local-only persistence, search, and query APIs. It uses free Docker Compose services only: PostgreSQL, Elasticsearch, and a Python storage sink that consumes Kafka streams and writes durable/queryable records.
 
 No AWS, managed databases, managed Elasticsearch, paid Kafka, or cloud services are used.
 
@@ -11,7 +11,6 @@ Kafka telemetry, analytics, and ML topics
     -> storage-sink Kafka consumer
     -> PostgreSQL structured records
     -> Elasticsearch searchable documents
-    -> Redis latest-value and counter cache
     -> FastAPI query APIs
 ```
 
@@ -20,7 +19,6 @@ Kafka telemetry, analytics, and ML topics
 | Service | Container | Port | Purpose |
 | --- | --- | --- | --- |
 | `postgres` | `streaming-analytics-postgres` | `5432` | Structured analytics and prediction storage |
-| `redis` | `streaming-analytics-redis` | `6379` | Latest predictions, counters, recent high-risk cache |
 | `elasticsearch` | `streaming-analytics-elasticsearch` | `9200` | Local full-text/event search |
 | `storage-sink` | `streaming-analytics-storage-sink` | none | Kafka persistence worker |
 
@@ -100,17 +98,6 @@ Documents include:
 
 Elasticsearch is optional-safe. If unavailable, PostgreSQL persistence continues and the sink logs a warning.
 
-## Redis Cache Keys
-
-Redis is used for low-latency dashboard-style lookups:
-
-- `latest:prediction:{entity_id}`
-- `recent:high-risk:{entity_id}`
-- `counters:events:{event_type}`
-- `counters:severity:{severity}`
-
-Redis is optional-safe. If unavailable, PostgreSQL persistence continues and the sink logs a warning.
-
 ## FastAPI Query APIs
 
 Endpoints:
@@ -133,9 +120,6 @@ POSTGRES_DB=streaming_analytics
 POSTGRES_USER=streaming_user
 POSTGRES_PASSWORD=streaming_password
 DATABASE_URL=postgresql+psycopg://streaming_user:streaming_password@streaming-analytics-postgres:5432/streaming_analytics
-REDIS_HOST=streaming-analytics-redis
-REDIS_PORT=6379
-REDIS_URL=redis://streaming-analytics-redis:6379/0
 ELASTICSEARCH_HOST=http://streaming-analytics-elasticsearch:9200
 STORAGE_SINK_LOG_LEVEL=INFO
 ```
@@ -161,7 +145,6 @@ Expected log signals:
 - Kafka connected.
 - PostgreSQL connected and schema initialized.
 - Elasticsearch connected or optional warning.
-- Redis connected or optional warning.
 - Records persisted.
 
 ## PostgreSQL Verification
@@ -205,5 +188,5 @@ If Elasticsearch is yellow in single-node mode, that is acceptable for local dev
 
 If Elasticsearch consumes too much memory, stop the stack and lower `ES_JAVA_OPTS` in `docker-compose.yml`.
 
-If storage sink logs optional Redis or Elasticsearch warnings, PostgreSQL should still continue receiving records.
+If storage sink logs Elasticsearch warnings, PostgreSQL should still continue receiving records and the outbox will retry indexing.
 

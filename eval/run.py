@@ -155,12 +155,12 @@ def generate() -> str:
                 {
                     "contract": coverage["contract_feature_count"],
                     "equivalent": coverage["real_equivalent_count"],
-                    "artifact": coverage["artifact_feature_count"],
+                    "artifact": coverage["artifact_feature_count"] or "not available",
                     "evaluated": coverage["can_evaluate"],
                     "reason": coverage["reason"],
                 }
             ],
-            [("contract", "Contract features"), ("equivalent", "Real equivalents"), ("artifact", "Committed artifact features"), ("evaluated", "Evaluated"), ("reason", "Reason")],
+            [("contract", "Contract features"), ("equivalent", "Real equivalents"), ("artifact", "Contract-v2 metadata features"), ("evaluated", "Evaluated"), ("reason", "Reason")],
         ),
     ]
     return "\n\n".join(sections) + "\n"

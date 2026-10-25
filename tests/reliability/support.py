@@ -36,15 +36,14 @@ def storage(db):
     settings = m.get_settings()
     factory = sessionmaker(db)
     indexer = m.ElasticsearchIndexer(settings)
-    cache = m.RedisCache(settings)
-    return m.StorageSinkConsumer(settings, factory, m.PostgresStorageRepository(), indexer, cache)
+    return m.StorageSinkConsumer(settings, factory, m.PostgresStorageRepository(), indexer)
 
 
 def alerts(db):
     m = module('alert-engine', 'app.main')
     settings = m.get_settings()
-    service = m.AlertProcessingService(m.AlertRulesEngine(), m.AlertDeduplicator(settings),
-        m.IncidentCorrelator(settings), m.AlertRepository(), m.AlertIndexer(settings))
+    service = m.AlertProcessingService(m.AlertRulesEngine(), m.IncidentCorrelator(settings),
+        m.AlertRepository(), m.AlertIndexer(settings), settings.dedup_cooldown_seconds)
     return m.AlertEngineConsumer(settings, sessionmaker(db), service)
 
 

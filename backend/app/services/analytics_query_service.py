@@ -1,9 +1,7 @@
-from infrastructure_runtime.security import redis_options
 from infrastructure_runtime.security import elasticsearch_options
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 
-import redis
 from elasticsearch import Elasticsearch
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -66,7 +64,6 @@ class AnalyticsQueryService:
         components = [
             self._database_health(db),
             self._elasticsearch_health(),
-            self._redis_health(),
         ]
         summary = self.summary(db)
         components.extend(
@@ -136,12 +133,3 @@ class AnalyticsQueryService:
             return SystemComponentHealth(name="Elasticsearch", status="degraded", detail="Search cluster did not respond to ping.")
         except Exception as exc:
             return SystemComponentHealth(name="Elasticsearch", status="degraded", detail=str(exc))
-
-    @staticmethod
-    def _redis_health() -> SystemComponentHealth:
-        try:
-            client = redis.from_url(settings.redis_url, socket_connect_timeout=2, **redis_options())
-            client.ping()
-            return SystemComponentHealth(name="Redis", status="degraded", detail="Redis connection ready; projection correctness is unverified. Results use PostgreSQL.")
-        except Exception as exc:
-            return SystemComponentHealth(name="Redis", status="degraded", detail="Redis unavailable; persisted results use PostgreSQL.")

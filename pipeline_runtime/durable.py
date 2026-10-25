@@ -1,7 +1,6 @@
 """PostgreSQL receipt + side-effect outbox, committed with each business transaction."""
 import logging
 import threading
-import time
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import String, Text, Integer, Boolean, DateTime, select
 from sqlalchemy.dialects.postgresql import JSONB, insert
@@ -56,37 +55,21 @@ def claim(session, service, key, payload):
 
 
 def enqueue(session, service, key, target, payload):
-    if target == "redis":
-        payload = {**payload, "_cache_expires_at": time.time() + 86400}
     session.execute(insert(Outbox).values(service=service, key=key, target=target, payload=payload)
                     .on_conflict_do_nothing())
 
 
 class OutboxWorker:
-    def __init__(self, factory, service, handlers, reconciler=None):
+    def __init__(self, factory, service, handlers):
         self.factory, self.service, self.handlers = factory, service, handlers
         self.stop_event = threading.Event()
         self.thread = None
-        self.reconciler = reconciler
-        self.cache_ready = reconciler is None
-        self.next_reconciliation = 0
 
     def drain_once(self, limit=20):
         from sqlalchemy import func
-        from pipeline_runtime.cache_recovery import cache_lock
-        if self.reconciler and time.monotonic() >= self.next_reconciliation:
-            self.cache_ready = False
-            self.next_reconciliation = time.monotonic() + 60
-            try:
-                self.reconciler.run()
-                self.cache_ready = True
-            except Exception:
-                logger.error("cache_recovery_pending service=%s", self.service)
         processed = 0
         for _ in range(limit):
             with self.factory() as session, session.begin():
-                if self.reconciler:
-                    cache_lock(session, self.service)
                 row = session.scalars(select(Outbox).where(Outbox.service == self.service, Outbox.done == False,
                     Outbox.next_attempt <= datetime.now(timezone.utc)).order_by(Outbox.next_attempt)
                     .with_for_update(skip_locked=True).limit(1)).first()
@@ -94,8 +77,6 @@ class OutboxWorker:
                     break
                 processed += 1
                 try:
-                    if row.target == "redis" and not self.cache_ready:
-                        raise RuntimeError("Cache reconciliation required before incremental effects")
                     self.handlers[row.target](row.key, row.payload)
                     row.done = True
                     row.last_error = None

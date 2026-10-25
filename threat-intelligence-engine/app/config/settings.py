@@ -1,4 +1,4 @@
-from infrastructure_runtime.security import database_url as secured_database_url, hardened
+from infrastructure_runtime.security import database_url as secured_database_url
 from functools import lru_cache
 
 from pydantic import Field, field_validator
@@ -14,8 +14,6 @@ class ThreatIntelSettings(BaseSettings):
     postgres_db: str = Field(default="streaming_analytics", validation_alias="POSTGRES_DB")
     postgres_user: str = Field(default="streaming_user", validation_alias="POSTGRES_USER")
     postgres_password: str = Field(default="streaming_password", validation_alias="POSTGRES_PASSWORD")
-    redis_host: str = Field(default="localhost", validation_alias="REDIS_HOST")
-    redis_port: int = Field(default=6379, validation_alias="REDIS_PORT")
     elasticsearch_host: str = Field(default="http://localhost:9200", validation_alias="ELASTICSEARCH_HOST")
     rules_path: str = Field(default="/app/rules", validation_alias="DETECTION_RULES_PATH")
     metrics_port: int = Field(default=9106, validation_alias="THREAT_INTEL_METRICS_PORT")
@@ -33,11 +31,6 @@ class ThreatIntelSettings(BaseSettings):
     @property
     def database_url(self) -> str:
         return secured_database_url(f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}")
-
-    @property
-    def redis_url(self) -> str:
-        return f"{'rediss' if hardened() else 'redis'}://{self.redis_host}:{self.redis_port}/0"
-
 
 @lru_cache
 def get_settings() -> ThreatIntelSettings:

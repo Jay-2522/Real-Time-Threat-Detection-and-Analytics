@@ -13,7 +13,7 @@ services:
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
     security_opt: [no-new-privileges:true]
     read_only: true
-    command: ['sh','-ec','cp /source/server.* /pg-tls/; cp /es-source/* /es-tls/; chmod 600 /es-tls/password /es-tls/server.key; chown -R 1000:0 /es-tls; chmod 600 /pg-tls/server.key; chown -R 70:70 /pg-data /pg-tls; chown -R 999:999 /redis-data; chown -R 1000:0 /es-data; chown -R 65534:65534 /prom-data; chown -R 472:472 /grafana-data; chown -R 1000:1000 /kafka-data; chown -R 185:185 /spark-state /spark-work']
+    command: ['sh','-ec','cp /source/server.* /pg-tls/; cp /es-source/* /es-tls/; chmod 600 /es-tls/password /es-tls/server.key; chown -R 1000:0 /es-tls; chmod 600 /pg-tls/server.key; chown -R 70:70 /pg-data /pg-tls; chown -R 1000:0 /es-data; chown -R 65534:65534 /prom-data; chown -R 472:472 /grafana-data; chown -R 1000:1000 /kafka-data; chown -R 185:185 /spark-state /spark-work']
     network_mode: none
     volumes:
       - ${HARDENED_SECRETS_DIR:?Provision a new private hardened secrets directory}/postgres:/source:ro
@@ -21,7 +21,6 @@ services:
       - es_tls:/es-tls
       - pg_tls:/pg-tls
       - pg_data:/pg-data
-      - redis_data:/redis-data
       - es_data:/es-data
       - prom_data:/prom-data
       - grafana_data:/grafana-data
@@ -52,18 +51,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-  redis:
-    <<: *restricted
-    build:
-      context: ../..
-      dockerfile: deploy/hardened/redis.Dockerfile
-    user: '999:999'
-    read_only: true
-    command: ['redis-server','/run/tls/redis.conf']
-    volumes:
-      - redis_data:/data
-      - ${HARDENED_SECRETS_DIR:?required}/redis:/run/tls:ro
-    networks: [cache]
   elasticsearch:
     <<: *restricted
     image: docker.elastic.co/elasticsearch/elasticsearch:8.19.22
@@ -114,7 +101,6 @@ services:
       SERVICE_SECURITY_FILE: /run/security/security.json
       METRICS_TOKEN_FILE: /run/security/metrics-token
       ELASTICSEARCH_HOST: https://elasticsearch:9200
-      REDIS_URL: rediss://redis:6379/0
       PROMETHEUS_URL: http://prometheus:9090
     volumes:
       - ${HARDENED_SECRETS_DIR:?required}/backend:/run/security:ro
@@ -122,7 +108,6 @@ services:
       web:
         ipv4_address: 172.29.250.3
       database: {}
-      cache: {}
       search: {}
       monitoring: {}
     healthcheck:
@@ -373,7 +358,6 @@ services:
       STORAGE_SINK_CONSUMER_GROUP: storage-hardened
       POSTGRES_HOST: postgres
       POSTGRES_DB: soc
-      REDIS_HOST: redis
       ELASTICSEARCH_HOST: https://elasticsearch:9200
     command:
     - python
@@ -385,7 +369,6 @@ services:
     - messaging
     - monitoring
     - database
-    - cache
     - search
   alert-engine:
     profiles:
@@ -412,7 +395,6 @@ services:
       ALERT_ENGINE_CONSUMER_GROUP: alerts-hardened
       POSTGRES_HOST: postgres
       POSTGRES_DB: soc
-      REDIS_HOST: redis
       ELASTICSEARCH_HOST: https://elasticsearch:9200
     command:
     - python
@@ -424,7 +406,6 @@ services:
     - messaging
     - monitoring
     - database
-    - cache
     - search
   threat-intelligence-engine:
     profiles:
@@ -451,7 +432,6 @@ services:
       THREAT_INTEL_CONSUMER_GROUP: threat-hardened
       POSTGRES_HOST: postgres
       POSTGRES_DB: soc
-      REDIS_HOST: redis
       ELASTICSEARCH_HOST: https://elasticsearch:9200
     command:
     - python
@@ -463,7 +443,6 @@ services:
     - messaging
     - monitoring
     - database
-    - cache
     - search
 
 networks:
@@ -473,7 +452,6 @@ networks:
     ipam:
       config: [{subnet: 172.29.250.0/28}]
   database: {internal: true}
-  cache: {internal: true}
   search: {internal: true}
   monitoring: {internal: true}
   messaging: {internal: true}
@@ -482,7 +460,6 @@ volumes:
   pg_tls:
   es_tls:
   pg_data:
-  redis_data:
   es_data:
   prom_data:
   grafana_data:

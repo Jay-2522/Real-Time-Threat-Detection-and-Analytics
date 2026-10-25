@@ -86,32 +86,25 @@ def test_concurrent_alerts_and_replay_do_not_inflate_incident(db):
         assert c.scalar(text('SELECT count(*) FROM incident_alert_links l JOIN alerts a ON a.alert_id=l.alert_id WHERE a.entity_id=:e'),{'e':entity})==2
 
 
-def test_outbox_recovers_real_elasticsearch_and_redis_failures(db):
+def test_outbox_recovers_real_elasticsearch_failures(db):
     from elasticsearch import Elasticsearch
-    import redis
-    from pipeline_runtime.cache import cache_once
     key=uuid.uuid4().hex; namespace='integration-'+key[:12]
     with Session(db) as session,session.begin():
         assert claim(session,namespace,key,{'id':key})
         enqueue(session,namespace,key,'es',{'id':key})
-        enqueue(session,namespace,key,'redis',{'id':key})
     bad_es=Elasticsearch('http://127.0.0.1:1',request_timeout=.2,max_retries=0)
-    bad_redis=redis.Redis(host='127.0.0.1',port=1,socket_connect_timeout=.2,socket_timeout=.2)
-    handlers={'es':lambda k,p:bad_es.index(index='reliability-regression',id=k,document=p),
-              'redis':lambda k,p:cache_once(bad_redis,namespace,k,'test:latest:'+key,'2026-01-01',p,['test:counter:'+key])}
+    handlers={'es':lambda k,p:bad_es.index(index='reliability-regression',id=k,document=p)}
     worker=OutboxWorker(lambda:Session(db),namespace,handlers);worker.drain_once()
     with Session(db) as session,session.begin():
         rows=session.scalars(select(Outbox).where(Outbox.service==namespace)).all()
-        assert len(rows)==2 and all(not r.done and r.attempts==1 for r in rows)
+        assert len(rows)==1 and all(not r.done and r.attempts==1 for r in rows)
         for r in rows:r.next_attempt=datetime.now(timezone.utc)-timedelta(seconds=1)
-    es=Elasticsearch('http://localhost:9200');cache=redis.Redis(host='localhost',port=6379,decode_responses=True)
+    es=Elasticsearch('http://localhost:9200')
     handlers['es']=lambda k,p:es.index(index='reliability-regression',id=k,document=p)
-    handlers['redis']=lambda k,p:cache_once(cache,namespace,k,'test:latest:'+key,'2026-01-01',p,['test:counter:'+key])
     worker.drain_once()
     # Repeat the effects as if the worker crashed before marking them done.
-    handlers['es'](key,{'id':key});handlers['redis'](key,{'id':key})
+    handlers['es'](key,{'id':key})
     assert es.get(index='reliability-regression',id=key)['_source']=={'id':key}
-    assert cache.get('test:counter:'+key)=='1'
     with Session(db) as session: assert all(r.done for r in session.scalars(select(Outbox).where(Outbox.service==namespace)))
 
 

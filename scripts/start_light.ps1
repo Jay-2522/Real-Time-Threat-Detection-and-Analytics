@@ -9,7 +9,6 @@ $baseServices = @(
   "kafka",
   "kafka-init",
   "postgres",
-  "redis",
   "backend",
   "frontend",
   "telemetry-producer"

@@ -66,18 +66,13 @@ def test_inconsistent_sql_search_records_are_identified():
     }
 
 
-def test_missing_redis_expiry_is_never_invented():
-    ledger = reconcile.cache_projection_gaps([{"identity": "a", "kind": "latest"}], {"latest"})
-    assert ledger[0].reason == "redis_expiry_unknown"
-
-
 def test_incomplete_durable_outbox_history_blocks_counter_rebuild():
     ledger = reconcile.durable_outbox_gaps({"a", "b"}, ["a"])
     assert [(x.record_identity, x.observed_behavior) for x in ledger] == [("b", "0 effects")]
 
 
 def test_shadow_output_isolation_rejects_original_topic():
-    original = {key: f"old-{key}" for key in ("compose_project", "consumer_group", "checkpoint", "database", "elasticsearch_index", "redis_volume", "credential_set")}
+    original = {key: f"old-{key}" for key in ("compose_project", "consumer_group", "checkpoint", "database", "elasticsearch_index", "credential_set")}
     original["output_topics"] = ["analytics.enriched.events"]
     shadow = {key: f"shadow-{key}" for key in original if key != "output_topics"}
     shadow["output_topics"] = ["analytics.enriched.events"]

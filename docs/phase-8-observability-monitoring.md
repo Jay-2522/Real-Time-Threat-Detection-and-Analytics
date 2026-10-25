@@ -72,7 +72,6 @@ Storage sink:
 - `records_persisted_total`
 - `postgres_write_errors_total`
 - `elasticsearch_index_errors_total`
-- `redis_cache_errors_total`
 - `storage_sink_lag_estimate`
 
 Alert engine:
@@ -107,7 +106,7 @@ Dashboards are provisioned automatically from `monitoring/grafana/dashboards/`:
 - `GET /api/v1/monitoring/errors`
 - `GET /api/v1/monitoring/metrics-summary`
 
-The APIs query Prometheus when available and gracefully degrade if Prometheus is still starting. PostgreSQL, Redis, and Elasticsearch checks are also optional-safe where appropriate.
+The APIs query Prometheus when available and gracefully degrade if Prometheus is still starting. PostgreSQL and Elasticsearch checks are also optional-safe where appropriate.
 
 ## Frontend
 

@@ -178,7 +178,7 @@ password-change UI, external tamper-resistant audit retention, scheduled cleanup
 expired sessions/throttle rows, and edge-level volumetric abuse controls remain
 future work. Fixed-window throttling can temporarily deny a legitimate account
 under attack. Database security, TLS deployment, network isolation, and protection
-of directly exposed infrastructure (including Elasticsearch, Redis, Kafka,
+of directly exposed infrastructure (including Elasticsearch, Kafka,
 Prometheus/Grafana and other services' metric ports) remain separate infrastructure
 work. Backend authentication does not secure direct access to those services.
 Existing non-authentication synthetic dashboard fallbacks remain outside this phase;

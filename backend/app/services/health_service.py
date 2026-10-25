@@ -13,7 +13,7 @@ def readiness_engine():
 
 def is_ready():
     # PostgreSQL is essential for both authorization and persisted security records.
-    # Redis/search/monitoring degradation is reported by authenticated monitoring APIs.
+    # Search/monitoring degradation is reported by authenticated monitoring APIs.
     try:
         with readiness_engine().connect() as connection:
             if connection.execute(text('SELECT id FROM auth_control WHERE id=1')).scalar() != 1:

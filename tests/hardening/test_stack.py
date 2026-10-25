@@ -95,20 +95,11 @@ def test_tls_proxy_assets_and_authentication(stack):
 def test_service_tls_authentication_and_authorization(stack):
     compose('exec','-T','backend','python','-',input='''
 import ssl,json,urllib.request,urllib.error
-import redis
 from elasticsearch import Elasticsearch,AuthorizationException
 from sqlalchemy import create_engine,text
 from sqlalchemy.exc import SQLAlchemyError
 from app.core.settings import settings
-from infrastructure_runtime.security import redis_options,elasticsearch_options
-try:
- redis.Redis(host='redis',port=6379,ssl=True,ssl_ca_certs='/run/security/ca.crt',ssl_check_hostname=True).ping()
- raise AssertionError('Anonymous Redis access succeeded')
-except redis.exceptions.AuthenticationError:pass
-r=redis.Redis.from_url(settings.redis_url,**redis_options())
-assert r.ping()
-try:r.flushall();raise AssertionError('Read identity executed FLUSHALL')
-except redis.exceptions.NoPermissionError:pass
+from infrastructure_runtime.security import elasticsearch_options
 ctx=ssl.create_default_context(cafile='/run/security/ca.crt')
 try:urllib.request.urlopen('https://elasticsearch:9200',context=ctx);raise AssertionError('Anonymous Elasticsearch access succeeded')
 except urllib.error.HTTPError as exc:assert exc.code==401
@@ -125,7 +116,7 @@ try:
  with create_engine(settings.database_url.replace('sslmode=verify-full','sslmode=disable'),hide_parameters=True).connect():pass
  raise AssertionError('Plaintext database connection succeeded')
 except SQLAlchemyError:pass
-print('Redis ACL, Elasticsearch RBAC, PostgreSQL least privilege and verified TLS passed.')
+print('Elasticsearch RBAC, PostgreSQL least privilege and verified TLS passed.')
 ''')
 
 
@@ -207,19 +198,18 @@ except OSError:pass
 
 
 @pytest.mark.skipif(os.environ.get('HARDENED_WORKERS_INTEGRATION')!='1',reason='Requires isolated secured workers')
-@pytest.mark.parametrize('service,role,index,namespace',[
-    ('storage-sink','storage','deadletter-events','storage'),
-    ('alert-engine','alerts','alerts','alert'),
-    ('threat-intelligence-engine','threat','attack-timelines','threat')])
-def test_worker_scoped_clients_and_cache_projection(stack,service,role,index,namespace):
+@pytest.mark.parametrize('service,role,index',[
+    ('storage-sink','storage','deadletter-events'),
+    ('alert-engine','alerts','alerts'),
+    ('threat-intelligence-engine','threat','attack-timelines')])
+def test_worker_scoped_clients(stack,service,role,index):
     compose('exec','-T',service,'python','-',input=f"""
 import os,uuid
 from sqlalchemy import create_engine,text
 from sqlalchemy.exc import SQLAlchemyError
 from elasticsearch import Elasticsearch,AuthorizationException
-import redis
 from app.config.settings import get_settings
-from infrastructure_runtime.security import redis_options,elasticsearch_options
+from infrastructure_runtime.security import elasticsearch_options
 assert os.geteuid()==10001
 settings=get_settings()
 with create_engine(settings.database_url,hide_parameters=True).connect() as db:
@@ -236,19 +226,5 @@ key='security-'+uuid.uuid4().hex
 assert es.index(index={index!r},id=key,document={{'security_probe':True}})['result']=='created'
 try:es.index(index='forbidden-security-index',id=key,document={{}});raise AssertionError('Worker wrote outside its index scope')
 except AuthorizationException:pass
-r=redis.Redis(host='redis',port=6379,ssl=True,**redis_options())
-assert r.ping()
-if {namespace!r} in ('storage','alert'):
- from pipeline_runtime.cache import cache_once
- namespace={namespace!r}
- latest=('latest:alert:' if namespace=='alert' else 'recent:high-risk:')+key
- counters=[('counters:alerts:entity:' if namespace=='alert' else 'counters:events:')+key]
- cache_once(r,namespace,key,latest,'2026-10-17T00:00:00Z',{{'security_probe':True,'timestamp':'2026-10-17T00:00:00Z','alert_id':key}},counters,list_key='live:critical-alerts' if namespace=='alert' else '')
- cache_once(r,namespace,key,latest,'2026-10-17T00:00:00Z',{{'security_probe':True}},counters)
- assert int(r.get(counters[0]))==1 and r.get(latest)
-if {namespace!r}=='threat':
- r.setex('ioc:security:'+key,60,'probe')
- try:r.setex('latest:alert:'+key,60,'forbidden');raise AssertionError('Threat worker changed alert cache')
- except redis.exceptions.NoPermissionError:pass
-print('Scoped SQL, search and replay-safe cache permissions passed.')
+print('Scoped SQL and search permissions passed.')
 """)

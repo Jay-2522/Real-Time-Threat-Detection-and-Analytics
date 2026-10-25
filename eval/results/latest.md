@@ -221,6 +221,6 @@
 
 ## Production model applicability
 
-| Contract features | Real equivalents | Committed artifact features | Evaluated | Reason |
+| Contract features | Real equivalents | Contract-v2 metadata features | Evaluated | Reason |
 | --- | --- | --- | --- | --- |
-| 18 | 4 | 15 | False | Missing production telemetry features; filling them would invent values. |
+| 18 | 4 | not available | False | Missing production telemetry features; filling them would invent values. |
