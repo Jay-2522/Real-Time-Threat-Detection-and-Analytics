@@ -107,14 +107,17 @@ class EventFactory:
                 failure_reason=None,
             )
         elif event_type == "api":
+            direct_alert_probe = sequence % 300 == 1
             common.update(
                 user_id=f"bench-user-{sequence % 100}",
                 endpoint="/api/v1/benchmark",
                 method="GET",
-                status_code=200,
+                status_code=503 if direct_alert_probe else 200,
                 response_time_ms=25 + sequence % 200,
                 request_size=512 + sequence % 4096,
             )
+            if direct_alert_probe:
+                common["risk_score"] = 80.0
         else:
             common.update(
                 destination_ip="203.0.113.10",

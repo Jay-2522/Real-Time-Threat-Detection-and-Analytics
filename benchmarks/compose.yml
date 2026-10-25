@@ -1,0 +1,7 @@
+services:
+  telemetry-producer:
+    environment:
+      SYNTHETIC_PRODUCER_ENABLED: "false"
+  spark-streaming:
+    environment:
+      SPARK_WATERMARK_DELAY: ${BENCHMARK_WATERMARK:-2 minutes}
