@@ -30,6 +30,36 @@ def count(db,table,column,value):
     with db.connect() as c: return c.scalar(text(f'SELECT count(*) FROM {table} WHERE {column}=:value'),{'value':value})
 
 
+def test_storage_batch_insert_and_duplicate_replay_are_idempotent(db):
+    class Message:
+        def __init__(self, payload, offset):
+            self.payload = payload
+            self.position = offset
+        def topic(self): return 'telemetry.login.events'
+        def partition(self): return 0
+        def offset(self): return self.position
+        def value(self): return json.dumps(self.payload).encode()
+
+    first, second = event(), event()
+    messages = [Message(first, 0), Message(second, 1)]
+    sink = storage(db)
+
+    sink._handle_batch(messages)
+    sink._handle_batch(messages)
+
+    assert count(db, 'telemetry_events', 'event_id', first['event_id']) == 1
+    assert count(db, 'telemetry_events', 'event_id', second['event_id']) == 1
+    with db.connect() as connection:
+        receipts = connection.scalar(text(
+            "SELECT count(*) FROM pipeline_receipts WHERE service='storage' AND key IN (:first, :second)"
+        ), {'first': logical_key('telemetry.login.events', first), 'second': logical_key('telemetry.login.events', second)})
+        outbox = connection.scalar(text(
+            "SELECT count(*) FROM pipeline_outbox WHERE service='storage' AND key IN (:first, :second)"
+        ), {'first': logical_key('telemetry.login.events', first), 'second': logical_key('telemetry.login.events', second)})
+    assert receipts == 2
+    assert outbox == 2
+
+
 def test_real_database_disconnect_no_ack_then_retry(db):
     topic,group=kafka_case(); p=event(); send(topic,json.dumps(p).encode())
     c,loop=consumer(topic,group); msg=next_message(c)
