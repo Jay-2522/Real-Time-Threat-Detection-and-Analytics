@@ -39,6 +39,11 @@ It is designed to demonstrate practical experience across:
 
 Everything runs locally with free/open-source tools. No paid APIs, managed cloud services, or external SaaS dependencies are required.
 
+Measured single-node throughput, latency, resource use, feature-engine comparisons,
+and watermark trade-offs are published in [the latest benchmark tables](benchmarks/results/latest.md).
+Regenerate a one-minute smoke profile with `python -m benchmarks.run --quick`,
+or the complete five-minute sweep with `python -m benchmarks.run --full`.
+
 ---
 
 ## Key Features

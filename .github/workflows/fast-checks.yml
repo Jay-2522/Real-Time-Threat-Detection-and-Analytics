@@ -33,6 +33,8 @@ jobs:
         run: ruff check --select E9,F63,F7,F82 .
       - name: Test dataset-independent evaluation
         run: pytest -q tests/reliability/test_detection_evaluation.py
+      - name: Test benchmark calculations without Docker
+        run: pytest -q benchmarks/tests
       - name: Test Python services
         run: pytest -q
       - name: Test storage sink package
