@@ -107,6 +107,10 @@ def test_concurrent_alerts_and_replay_do_not_inflate_incident(db):
     with ThreadPoolExecutor(2) as pool: list(pool.map(lambda _:consumer_obj._handle_message(topic,wire),range(2)))
     consumer_obj._handle_message(topic,wire)
     assert count(db,'alerts','entity_id',entity)==1
+    with db.begin() as connection:
+        connection.execute(text(
+            "UPDATE alert_dedup_cache SET last_seen=now()-interval '10 minutes' WHERE entity_id=:entity"
+        ), {'entity': entity})
     p2={**p,'prediction_id':str(uuid.uuid4())}
     consumer_obj._handle_message(topic,json.dumps(p2).encode())
     assert count(db,'alerts','entity_id',entity)==2
