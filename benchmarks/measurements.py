@@ -219,6 +219,7 @@ class RuntimeSampler:
     interval_seconds: float = 5.0
     resource_samples: dict[str, list[tuple[float, float]]] = field(default_factory=lambda: defaultdict(list))
     lag_samples: list[tuple[float, dict[str, int]]] = field(default_factory=list)
+    snapshots: list[tuple[float, dict[str, tuple[float, float]]]] = field(default_factory=list)
     _stop: threading.Event = field(default_factory=threading.Event, init=False)
     _thread: threading.Thread | None = field(default=None, init=False)
 
@@ -241,10 +242,16 @@ class RuntimeSampler:
                     capture_output=True,
                     text=True,
                 ).stdout
+                elapsed = time.monotonic() - started
+                snapshot = {}
                 for line in output.splitlines():
                     row = json.loads(line)
                     cpu = float(row["CPUPerc"].rstrip("%"))
-                    self.resource_samples[row["Name"]].append((cpu, parse_memory_mib(row["MemUsage"])))
+                    memory = parse_memory_mib(row["MemUsage"])
+                    self.resource_samples[row["Name"]].append((cpu, memory))
+                    if row["Name"].startswith("streaming-analytics-"):
+                        snapshot[row["Name"]] = (cpu, memory)
+                self.snapshots.append((elapsed, snapshot))
                 lag_output = subprocess.run(
                     [
                         "docker",
@@ -285,3 +292,19 @@ class RuntimeSampler:
                 "final": values[-1] if values else None,
             }
         return resources, lag
+
+    def memory_at(self, elapsed_seconds: float) -> dict[str, float | int | None]:
+        if not self.snapshots:
+            return {
+                "target_seconds": elapsed_seconds,
+                "observed_seconds": None,
+                "total_memory_mib": None,
+                "running_services": 0,
+            }
+        observed, snapshot = min(self.snapshots, key=lambda sample: abs(sample[0] - elapsed_seconds))
+        return {
+            "target_seconds": elapsed_seconds,
+            "observed_seconds": observed,
+            "total_memory_mib": sum(memory for _cpu, memory in snapshot.values()),
+            "running_services": len(snapshot),
+        }
