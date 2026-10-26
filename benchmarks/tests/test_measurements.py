@@ -48,6 +48,19 @@ def test_fixed_elapsed_memory_uses_nearest_whole_stack_snapshot():
     }
 
 
+def test_dedicated_fixed_memory_snapshot_takes_precedence():
+    sampler = RuntimeSampler([])
+    sampler.snapshots = [(55.0, {"streaming-analytics-old": (1.0, 100.0)})]
+    sampler.fixed_snapshot = (60.001, {"streaming-analytics-a": (2.0, 101.0), "streaming-analytics-b": (3.0, 202.0)})
+
+    assert sampler.memory_at(60.0) == {
+        "target_seconds": 60.0,
+        "observed_seconds": 60.001,
+        "total_memory_mib": 303.0,
+        "running_services": 2,
+    }
+
+
 def test_watermark_coverage_counts_missing_closed_window_memberships():
     capture = TopicCapture("unused", "unused")
     capture.raw = {

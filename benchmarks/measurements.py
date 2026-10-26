@@ -217,23 +217,32 @@ class TopicCapture:
 class RuntimeSampler:
     compose: list[str]
     interval_seconds: float = 5.0
+    fixed_elapsed_seconds: float = 60.0
     resource_samples: dict[str, list[tuple[float, float]]] = field(default_factory=lambda: defaultdict(list))
     lag_samples: list[tuple[float, dict[str, int]]] = field(default_factory=list)
     snapshots: list[tuple[float, dict[str, tuple[float, float]]]] = field(default_factory=list)
+    fixed_snapshot: tuple[float, dict[str, tuple[float, float]]] | None = None
     _stop: threading.Event = field(default_factory=threading.Event, init=False)
     _thread: threading.Thread | None = field(default=None, init=False)
+    _fixed_thread: threading.Thread | None = field(default=None, init=False)
+    _started: float | None = field(default=None, init=False)
 
     def start(self) -> None:
+        self._started = time.monotonic()
         self._thread = threading.Thread(target=self._sample, name="benchmark-runtime-sampler", daemon=True)
+        self._fixed_thread = threading.Thread(target=self._sample_fixed, name="benchmark-fixed-memory-sampler", daemon=True)
         self._thread.start()
+        self._fixed_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
         if self._thread:
             self._thread.join(timeout=self.interval_seconds + 5)
+        if self._fixed_thread:
+            self._fixed_thread.join(timeout=5)
 
     def _sample(self) -> None:
-        started = time.monotonic()
+        started = self._started or time.monotonic()
         next_sample = started
         while not self._stop.is_set():
             try:
@@ -274,6 +283,30 @@ class RuntimeSampler:
             next_sample += self.interval_seconds
             self._stop.wait(max(0.0, next_sample - time.monotonic()))
 
+    def _sample_fixed(self) -> None:
+        started = self._started or time.monotonic()
+        if self._stop.wait(self.fixed_elapsed_seconds):
+            return
+        sample_started = time.monotonic() - started
+        try:
+            output = subprocess.run(
+                ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            snapshot = {}
+            for line in output.splitlines():
+                row = json.loads(line)
+                if row["Name"].startswith("streaming-analytics-"):
+                    snapshot[row["Name"]] = (
+                        float(row["CPUPerc"].rstrip("%")),
+                        parse_memory_mib(row["MemUsage"]),
+                    )
+            self.fixed_snapshot = (sample_started, snapshot)
+        except (KeyError, ValueError, json.JSONDecodeError, subprocess.SubprocessError):
+            self.fixed_snapshot = None
+
     def summary(self) -> tuple[dict[str, dict[str, float | None]], dict[str, dict[str, int | None]]]:
         resources = {}
         for container, samples in sorted(self.resource_samples.items()):
@@ -296,6 +329,14 @@ class RuntimeSampler:
         return resources, lag
 
     def memory_at(self, elapsed_seconds: float) -> dict[str, float | int | None]:
+        if self.fixed_snapshot is not None and elapsed_seconds == self.fixed_elapsed_seconds:
+            observed, snapshot = self.fixed_snapshot
+            return {
+                "target_seconds": elapsed_seconds,
+                "observed_seconds": observed,
+                "total_memory_mib": sum(memory for _cpu, memory in snapshot.values()),
+                "running_services": len(snapshot),
+            }
         if not self.snapshots:
             return {
                 "target_seconds": elapsed_seconds,
