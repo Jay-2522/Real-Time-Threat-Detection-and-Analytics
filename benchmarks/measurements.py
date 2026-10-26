@@ -234,15 +234,16 @@ class RuntimeSampler:
 
     def _sample(self) -> None:
         started = time.monotonic()
+        next_sample = started
         while not self._stop.is_set():
             try:
+                sample_started = time.monotonic() - started
                 output = subprocess.run(
                     ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
                     check=True,
                     capture_output=True,
                     text=True,
                 ).stdout
-                elapsed = time.monotonic() - started
                 snapshot = {}
                 for line in output.splitlines():
                     row = json.loads(line)
@@ -251,7 +252,7 @@ class RuntimeSampler:
                     self.resource_samples[row["Name"]].append((cpu, memory))
                     if row["Name"].startswith("streaming-analytics-"):
                         snapshot[row["Name"]] = (cpu, memory)
-                self.snapshots.append((elapsed, snapshot))
+                self.snapshots.append((sample_started, snapshot))
                 lag_output = subprocess.run(
                     [
                         "docker",
@@ -270,7 +271,8 @@ class RuntimeSampler:
                 self.lag_samples.append((time.monotonic() - started, parse_consumer_lag(lag_output)))
             except (KeyError, ValueError, json.JSONDecodeError, subprocess.SubprocessError):
                 pass
-            self._stop.wait(self.interval_seconds)
+            next_sample += self.interval_seconds
+            self._stop.wait(max(0.0, next_sample - time.monotonic()))
 
     def summary(self) -> tuple[dict[str, dict[str, float | None]], dict[str, dict[str, int | None]]]:
         resources = {}
