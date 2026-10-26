@@ -120,7 +120,6 @@ http://localhost:8000/api/v1/events/recent
 
 Verify supporting UIs:
 
-- Spark Master UI: `http://localhost:8081`
 - Spark Job UI: `http://localhost:4040`
 - Elasticsearch health: `http://localhost:9200/_cluster/health`
 

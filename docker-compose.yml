@@ -223,42 +223,6 @@ services:
     networks:
       - streaming-analytics-network
 
-  spark-master:
-    container_name: streaming-analytics-spark-master
-    image: apache/spark:3.5.3
-    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master", "--host", "0.0.0.0", "--port", "7077", "--webui-port", "8080"]
-    ports:
-      - "127.0.0.1:7077:7077"
-      - "127.0.0.1:8081:8080"
-    healthcheck:
-      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/8080"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-    networks:
-      - streaming-analytics-network
-
-  spark-worker:
-    # Match the driver UID so both can create state files in the shared local volume.
-    user: "0:0"
-    container_name: streaming-analytics-spark-worker
-    image: apache/spark:3.5.3
-    depends_on:
-      spark-master:
-        condition: service_healthy
-    volumes:
-      - spark_checkpoints:/opt/spark/checkpoints
-    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://streaming-analytics-spark-master:7077", "--cores", "2", "--memory", "2G", "--webui-port", "8081"]
-    ports:
-      - "127.0.0.1:8082:8081"
-    healthcheck:
-      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/8081"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-    networks:
-      - streaming-analytics-network
-
   spark-streaming:
     stop_grace_period: 90s
     container_name: streaming-analytics-spark-streaming
@@ -288,10 +252,6 @@ services:
     depends_on:
       kafka-init:
         condition: service_completed_successfully
-      spark-master:
-        condition: service_healthy
-      spark-worker:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - streaming-analytics-network

@@ -135,17 +135,13 @@ def _hop_rows(runs: list[dict[str, Any]]) -> list[list[str]]:
 
 def _comparison_rows(throughput: list[dict[str, Any]], engines: list[dict[str, Any]], rates: list[int]) -> list[list[str]]:
     rows = []
-    spark_names = [
-        "streaming-analytics-spark-master",
-        "streaming-analytics-spark-worker",
-        "streaming-analytics-spark-streaming",
-    ]
+    spark_names = ["streaming-analytics-spark-streaming"]
     for rate in rates:
         cluster = [run for run in throughput if "error" not in run and int(run["config"]["rate"]) == rate]
         if cluster:
             rows.append(
                 [
-                    "Spark cluster",
+                    "Spark local[2] full stack",
                     str(rate),
                     _median_range([run["load"]["achieved_rate"] for run in cluster]),
                     _fmt(_safe_median(_resource_total(run, spark_names, "cpu_median_percent") for run in cluster)),
@@ -310,7 +306,7 @@ def main() -> None:
         payload,
         "feature_engines",
         "shared Spark/Python feature sample",
-        lambda: run_feature_engine(shared, "spark-cluster", shared_python=True),
+        lambda: run_feature_engine(shared, "spark-local", shared_python=True),
     )
 
     for watermark in (120, 60, 30):

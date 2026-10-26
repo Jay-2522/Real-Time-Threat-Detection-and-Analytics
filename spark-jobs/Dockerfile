@@ -26,4 +26,4 @@ COPY infrastructure_runtime ./infrastructure_runtime
 
 RUN mkdir -p /opt/spark/checkpoints /opt/spark/state
 
-CMD ["/opt/spark/bin/spark-submit", "--master", "spark://streaming-analytics-spark-master:7077", "--jars", "/opt/spark/jars/org.apache.spark_spark-sql-kafka-0-10_2.12-3.5.3.jar,/opt/spark/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.12-3.5.3.jar,/opt/spark/jars/org.apache.kafka_kafka-clients-3.4.1.jar,/opt/spark/jars/org.apache.commons_commons-pool2-2.11.1.jar", "app/main.py"]
+CMD ["/opt/spark/bin/spark-submit", "--master", "local[2]", "--jars", "/opt/spark/jars/org.apache.spark_spark-sql-kafka-0-10_2.12-3.5.3.jar,/opt/spark/jars/org.apache.spark_spark-token-provider-kafka-0-10_2.12-3.5.3.jar,/opt/spark/jars/org.apache.kafka_kafka-clients-3.4.1.jar,/opt/spark/jars/org.apache.commons_commons-pool2-2.11.1.jar", "app/main.py"]

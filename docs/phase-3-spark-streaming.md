@@ -22,14 +22,10 @@ Phase 3 extends `docker-compose.yml` with:
 
 | Service | Container | Purpose |
 | --- | --- | --- |
-| `spark-master` | `streaming-analytics-spark-master` | Spark standalone cluster master |
-| `spark-worker` | `streaming-analytics-spark-worker` | Local Spark worker with 2 cores and 2 GB memory |
-| `spark-streaming` | `streaming-analytics-spark-streaming` | PySpark Structured Streaming analytics driver |
+| `spark-streaming` | `streaming-analytics-spark-streaming` | PySpark Structured Streaming job using two local worker threads |
 
 Spark UI endpoints:
 
-- Spark Master UI: `http://localhost:8081`
-- Spark Worker UI: `http://localhost:8082`
 - Spark Driver / Jobs UI: `http://localhost:4040`
 
 ## Kafka Inputs
