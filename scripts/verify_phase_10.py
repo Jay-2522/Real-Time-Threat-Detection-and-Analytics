@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import subprocess
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,8 +26,8 @@ REQUIRED_DOCS = [
     "docs/demo-guide.md",
     "docs/architecture.md",
     "docs/troubleshooting.md",
-    "docs/resume-summary.md",
-    "docs/production-readiness-checklist.md",
+    "docs/AUTHENTICATION.md",
+    "docs/KAFKA_DELIVERY_CONTRACT.md",
 ]
 
 REQUIRED_SCRIPTS = [
@@ -65,9 +66,15 @@ def check_path(path: str, label: str, critical: bool = True) -> Check:
 
 
 def check_compose_config() -> Check:
+    command = ["docker", "compose"] if subprocess.run(
+        ["docker", "compose", "version"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    ).returncode == 0 else [shutil.which("docker-compose") or "docker-compose"]
     try:
         result = subprocess.run(
-            ["docker", "compose", "config", "--quiet"],
+            [*command, "config", "--quiet"],
             cwd=ROOT,
             text=True,
             capture_output=True,
@@ -80,7 +87,7 @@ def check_compose_config() -> Check:
         return Check("Docker Compose config", "WARN", "Docker Compose config check timed out.", critical=False)
 
     if result.returncode == 0:
-        return Check("Docker Compose config", "OK", "docker compose config --quiet passed")
+        return Check("Docker Compose config", "OK", f"{' '.join(command)} config --quiet passed")
     detail = (result.stderr or result.stdout or "docker compose config failed").strip()
     return Check("Docker Compose config", "FAIL", detail)
 

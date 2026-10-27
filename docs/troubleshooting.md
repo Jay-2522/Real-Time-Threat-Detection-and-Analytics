@@ -1,99 +1,58 @@
-# Troubleshooting Guide
+# Troubleshooting
 
-## Docker Desktop Engine Errors
-
-Symptoms:
-
-```text
-failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
-500 Internal Server Error for dockerDesktopLinuxEngine
-```
-
-Fix:
-
-1. Restart Docker Desktop.
-2. Wait until the engine reports running.
-3. Run:
+## Compose does not start
 
 ```bash
 docker compose config --quiet
-docker compose up --build -d
+docker compose ps --all
+docker compose logs --tail=200
 ```
 
-## Empty Dashboards
+Run `python3 scripts/setup_local.py` if `.env` or the private metrics credential is
+missing. The script preserves existing settings and volumes.
 
-The platform is streaming and multi-stage. Let it run for several minutes so data can move through:
+## Dashboard is empty
 
-```text
-producer -> Kafka -> Spark -> ML -> alert engine -> threat intelligence -> storage -> APIs
-```
-
-Then refresh the dashboard.
-
-## Laptop Resource Pressure
-
-Use light mode:
+The default producer is synthetic and the pipeline has multiple Kafka stages. Check
+service health and then run the deterministic lineage check:
 
 ```bash
-./scripts/start_light.sh
+python3 scripts/health_check.py
+./scripts/lineage_check.sh
 ```
 
-Windows:
+Windowed output uses a one-minute window, a 30-second slide, and a two-minute
+watermark, so its alerts can take minutes. Direct enriched-event rules do not need to
+wait for window closure.
 
-```powershell
-.\scripts\start_light.ps1
-```
+## Authentication
 
-Light mode avoids the heaviest optional visualization/observability services by default.
-
-## Phase 10 Verification In Light Mode
-
-Phase 10 can be verified without running the full heavy stack. Light mode is valid as long as the repository structure, scripts, docs, Docker Compose config, frontend files, backend app, and core service folders are present.
-
-Run:
+Fresh volumes have no human account. Create the one-time initial administrator with:
 
 ```bash
-python scripts/verify_phase_10.py
+docker compose exec backend python -m app.auth.provision
 ```
 
-The verifier treats frontend, backend health, and backend docs HTTP checks as optional runtime probes. If those services are not running, the script prints `[WARN]` but still exits successfully when core files and Compose configuration are valid.
+Use the same hostname (`localhost`) for the frontend and API. The development-only
+HTTP cookie exception is restricted to loopback origins.
 
-## Prometheus Target Down
-
-Open:
-
-```text
-http://localhost:9090/targets
-```
-
-If a target is down:
-
-- confirm the container is running with `docker ps`
-- check its logs with `docker logs <container-name>`
-- verify the metrics port from `scripts/health_check.py`
-
-## Elasticsearch Slow Startup
-
-Elasticsearch can take longer than the Python services. If search APIs are empty, wait and check:
-
-```text
-http://localhost:9200/_cluster/health
-```
-
-PostgreSQL-backed APIs should continue to work even when Elasticsearch is temporarily unavailable.
-
-## Pytest Not Installed Locally
-
-Install service dependencies before running tests:
+## Elasticsearch is slow or unavailable
 
 ```bash
-pip install -r backend/requirements.txt
-pip install -r ml-models/requirements.txt
-pip install -r alert-engine/requirements.txt
-pip install -r threat-intelligence-engine/requirements.txt
-python -m pytest
+curl -fsS http://localhost:9200/_cluster/health
 ```
 
-## Frontend Build Warning
+PostgreSQL is authoritative. Elasticsearch is populated from a durable outbox, so
+search may be temporarily behind while retries continue.
 
-The Vite build may warn about a large chunk because the dashboard includes charts, graph visualization, and animation libraries. This is acceptable for the local portfolio build. Future production work can code-split routes.
+## Resource pressure
+
+Grafana is not part of the default profile. Stop it without stopping the measured
+stack:
+
+```bash
+docker compose stop grafana
+```
+
+The latest measured laptop configuration and resource samples are in
+`benchmarks/results/latest.md`.
