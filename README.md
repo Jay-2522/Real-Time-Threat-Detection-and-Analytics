@@ -8,7 +8,11 @@ A single-node streaming security analytics lab that moves synthetic telemetry th
 
 ## Quickstart
 
-These commands are the short operator path from a fresh clone. A first image build takes longer than one minute; the measured fresh-clone time is reported in the delivery notes for this documentation change.
+Prerequisites are Git, a running Docker engine, and either Docker Compose v2
+(`docker compose`) or the compatible `docker-compose` command. If Docker runs in
+a VM such as Colima, clone into a host directory shared with that VM. A first
+image build takes longer than one minute; the measured fresh-clone time is
+reported in the delivery notes for this documentation change.
 
 ~~~bash
 export BRANCH=dev
