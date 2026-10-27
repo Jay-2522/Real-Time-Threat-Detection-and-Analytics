@@ -1,6 +1,6 @@
 # Latest single-node benchmark
 
-Generated: 2026-10-25T20:23:32.378976+00:00
+Generated: 2026-10-26T17:57:04.611539+00:00
 
 These are single-node laptop measurements, not production capacity claims.
 
@@ -19,62 +19,65 @@ These are single-node laptop measurements, not production capacity claims.
 
 | Requested events/s | Runs | Achieved median (range) | Persisted % median (range) | Max lag median (range) | Clean runs | First observed bottleneck |
 | --- | --- | --- | --- | --- | --- | --- |
-| 50 | 3 | 50.00 (50.00–50.00) | 100.00 (100.00–100.00) | 4877 (4853–5102) | 3/3 | none observed |
-| 200 | 3 | 200.00 (200.00–200.00) | 65.58 (58.91–66.36) | 88936 (85100–91844) | 0/3 | streaming-analytics-storage-sink |
-| 500 | 3 | 499.99 (499.96–500.00) | 24.52 (22.51–24.90) | 268406 (258772–278162) | 0/3 | streaming-analytics-storage-sink |
-| 1000 | 3 | 999.94 (999.85–999.98) | 16.76 (15.87–16.79) | 568727 (562251–571398) | 0/3 | streaming-analytics-storage-sink |
-| 2000 | 3 | 1999.97 (1999.91–1999.98) | 8.83 (8.36–9.63) | 575379 (575056–856692) | 0/3 | Spark enriched path |
+| 200 | 2 | 199.92 (199.92–199.93) | 100.00 (100.00–100.00) | 87244 (87002–87486) | 0/2 | streaming-analytics-threat-intelligence |
+| 500 | 2 | 499.98 (499.97–500.00) | 100.00 (100.00–100.00) | 235000 (233667–236333) | 0/2 | streaming-analytics-threat-intelligence |
+| 1000 | 2 | 999.99 (999.98–999.99) | 100.00 (100.00–100.00) | 463104 (453498–472709) | 0/2 | streaming-analytics-threat-intelligence |
 
 ## Per-hop latency
 
-| Hop | Samples | Median seconds | Median p95 seconds |
-| --- | --- | --- | --- |
-| raw topic → enriched topic | 3208489 | 13.81 | 31.92 |
-| enriched topic → feature topic | 8600 | 137.74 | 152.39 |
-| feature topic → prediction topic | 8600 | 0.80 | 1.67 |
-| enriched topic → direct alert row | 56 | 177.83 | 309.03 |
-| feature topic → windowed alert row | 953 | 47.67 | 48.28 |
-| window first event → alert row | 953 | 240.99 | 242.50 |
-| deliberate window + watermark | 953 | 153.18 | 171.14 |
-| remaining window processing | 953 | 70.09 | 71.55 |
+| Rate | Hop | Samples | Median seconds | Median p95 seconds |
+| --- | --- | --- | --- | --- |
+| 200 | raw topic → enriched topic | 120000 | 18.18 | 36.80 |
+| 200 | enriched topic → feature topic | 1200 | 132.58 | 154.71 |
+| 200 | feature topic → prediction topic | 1200 | 1.50 | 6.64 |
+| 200 | enriched topic → direct alert row | 8 | 122.35 | 184.02 |
+| 200 | feature topic → windowed alert row | 300 | 183.33 | 185.83 |
+| 200 | window first event → alert row | 300 | 374.33 | 382.80 |
+| 200 | deliberate window + watermark | 300 | 162.10 | 167.58 |
+| 200 | remaining window processing | 300 | 212.20 | 215.49 |
+| 500 | raw topic → enriched topic | 300000 | 15.14 | 34.67 |
+| 500 | enriched topic → feature topic | 1200 | 130.93 | 139.68 |
+| 500 | feature topic → prediction topic | 1200 | 1.39 | 2.29 |
+| 500 | enriched topic → direct alert row | 10 | 197.83 | 342.22 |
+| 500 | feature topic → windowed alert row | 200 | 362.21 | 362.65 |
+| 500 | window first event → alert row | 200 | 534.19 | 535.38 |
+| 500 | deliberate window + watermark | 200 | 147.63 | 147.72 |
+| 500 | remaining window processing | 200 | 386.54 | 387.71 |
+| 1000 | raw topic → enriched topic | 600000 | 20.90 | 32.94 |
+| 1000 | enriched topic → feature topic | 1200 | 131.93 | 146.49 |
+| 1000 | feature topic → prediction topic | 1200 | 0.55 | 1.19 |
+| 1000 | enriched topic → direct alert row | 10 | 199.27 | 358.30 |
+| 1000 | feature topic → windowed alert row | 100 | 304.45 | 305.08 |
+| 1000 | window first event → alert row | 100 | 491.51 | 492.03 |
+| 1000 | deliberate window + watermark | 100 | 135.53 | 135.58 |
+| 1000 | remaining window processing | 100 | 355.98 | 356.51 |
+
+## Startup and fixed-elapsed resources
+
+| Rate | Run | Time to healthy s | Running services | Memory sample elapsed s | Total memory MiB |
+| --- | --- | --- | --- | --- | --- |
+| 200 | 1 | 70.24 | 13 | 60.01 | 3692.78 |
+| 200 | 2 | 73.11 | 13 | 60.01 | 3490.49 |
+| 500 | 1 | 71.39 | 13 | 60.00 | 3388.29 |
+| 500 | 2 | 71.30 | 13 | 60.01 | 3788.29 |
+| 1000 | 1 | 72.02 | 13 | 60.01 | 3560.28 |
+| 1000 | 2 | 65.45 | 13 | 60.01 | 4474.00 |
 
 ## Feature engine comparison
 
-| Engine | Requested events/s | Achieved events/s | Median CPU % | Median memory MiB | Median window latency s | Drained |
-| --- | --- | --- | --- | --- | --- | --- |
-| Spark cluster | 50 | 50.00 (50.00–50.00) | 8.72 | 1931.00 | 137.45 | yes |
-| Spark local[2] | 50 | 50.00 | 5.14 | 884.20 | 151.48 | yes |
-| Plain Python | 50 | 50.12 | 2.50 | 26.81 | 121.02 | yes |
-| Spark cluster | 200 | 200.00 (200.00–200.00) | 12.77 | 2110.89 | 135.85 | no |
-| Spark local[2] | 200 | 200.00 | 0.96 | 943.00 | 151.09 | yes |
-| Plain Python | 200 | 200.37 | 8.20 | 30.75 | 120.26 | yes |
-| Spark cluster | 500 | 499.99 (499.96–500.00) | 23.07 | 2088.08 | 135.83 | no |
-| Spark local[2] | 500 | 500.00 | 1.16 | 968.80 | 150.81 | yes |
-| Plain Python | 500 | 501.29 | 15.90 | 37.67 | 120.11 | yes |
-| Spark cluster | 1000 | 999.94 (999.85–999.98) | 46.85 | 2405.02 | 140.51 | no |
-| Spark local[2] | 1000 | 1000.00 | 0.69 | 1083.39 | 148.08 | yes |
-| Plain Python | 1000 | 1002.76 | 15.60 | 54.97 | 120.06 | yes |
-| Spark cluster | 2000 | 1999.97 (1999.91–1999.98) | 65.84 | 2324.65 | 257.22 | no |
-| Spark local[2] | 2000 | 1999.97 | 1.38 | 1131.52 | 256.07 | no |
-| Plain Python | 2000 | 2005.58 | 20.80 | 86.91 | 120.03 | yes |
+Not measured in this throughput-only profile.
 
 ## Shared-sample feature equivalence
 
-| Common windows | Compared values | Mismatched values | Mismatch rate | Spark-only windows | Python-only windows |
-| --- | --- | --- | --- | --- | --- |
-| 600 | 10800 | 0 | 0.00 | 0 | 0 |
+Not measured in this throughput-only profile.
 
 ## Watermark trade-off at 200 events/s and 10% configured disorder
 
-| Watermark | Median end-to-end s | Observed out-of-order events | Missing closed-window memberships | Missing % | Drained |
-| --- | --- | --- | --- | --- | --- |
-| 120 s | 219.87 | 5988 | 15 | 0.03 | no (timeout) |
-| 60 s | 164.06 | 5988 | 943 | 1.16 | no (timeout) |
-| 30 s | 128.52 | 5988 | 2977 | 2.88 | no (timeout) |
+Not measured in this throughput-only profile.
 
 ## Scope
 
-Profile: `full`; duration per load: 300 s; throughput repetitions: 3.
+Profile: `full`; duration per load: 300 s; throughput repetitions: 2.
 No multi-node test, multi-hour soak, failure injection, cloud network, or production-server hardware was measured.
 Tail windows that cannot close without newer event time are excluded from closed-window loss calculations.
 Spark Structured Streaming does not expose a conventional committed Kafka consumer group here; drain also requires one enriched output per delivered input.

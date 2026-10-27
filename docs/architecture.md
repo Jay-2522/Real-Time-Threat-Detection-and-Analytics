@@ -31,9 +31,7 @@ flowchart LR
         P["Telemetry Producer"]
     end
     subgraph Processing
-        SM["Spark Master"]
-        SW["Spark Worker"]
-        SJ["Spark Streaming Job"]
+        SJ["Spark Streaming local[2]"]
     end
     subgraph Intelligence
         ML["ML Inference"]

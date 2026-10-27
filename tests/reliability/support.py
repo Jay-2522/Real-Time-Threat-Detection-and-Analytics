@@ -36,7 +36,13 @@ def storage(db):
     settings = m.get_settings()
     factory = sessionmaker(db)
     indexer = m.ElasticsearchIndexer(settings)
-    return m.StorageSinkConsumer(settings, factory, m.PostgresStorageRepository(), indexer)
+    consumer = m.StorageSinkConsumer(settings, factory, m.PostgresStorageRepository(), indexer)
+    consumer._deadletter_producer = Producer({
+        'bootstrap.servers': 'localhost:9092',
+        'delivery.timeout.ms': 5000,
+        'enable.idempotence': True,
+    })
+    return consumer
 
 
 def alerts(db):

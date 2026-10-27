@@ -21,6 +21,8 @@ class StorageSinkSettings(BaseSettings):
     metrics_port: int = Field(default=9102, validation_alias="STORAGE_SINK_METRICS_PORT")
 
     consumer_client_id: str = "streaming-analytics-storage-sink"
+    batch_size: int = Field(default=200, ge=1, le=1000, validation_alias="STORAGE_SINK_BATCH_SIZE")
+    batch_wait_ms: int = Field(default=50, ge=0, le=1000, validation_alias="STORAGE_SINK_BATCH_WAIT_MS")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 

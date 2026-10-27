@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from benchmarks.measurements import TopicCapture, parse_consumer_lag, parse_memory_mib, percentile, window_latency_parts
+from benchmarks.measurements import RuntimeSampler, TopicCapture, parse_consumer_lag, parse_memory_mib, percentile, window_latency_parts
 
 
 def test_latency_percentile_interpolates_without_selecting_best_run():
@@ -30,6 +30,35 @@ storage telemetry.login.events 1 20 22 2 id host client
 alerts analytics.enriched.events 0 8 8 0 id host client
 """
     assert parse_consumer_lag(output) == {"storage": 7, "alerts": 0}
+
+
+def test_fixed_elapsed_memory_uses_nearest_whole_stack_snapshot():
+    sampler = RuntimeSampler([])
+    sampler.snapshots = [
+        (55.0, {"streaming-analytics-a": (1.0, 100.0)}),
+        (60.5, {"streaming-analytics-a": (2.0, 101.0), "streaming-analytics-b": (3.0, 202.0)}),
+        (66.0, {"streaming-analytics-a": (4.0, 104.0)}),
+    ]
+
+    assert sampler.memory_at(60.0) == {
+        "target_seconds": 60.0,
+        "observed_seconds": 60.5,
+        "total_memory_mib": 303.0,
+        "running_services": 2,
+    }
+
+
+def test_dedicated_fixed_memory_snapshot_takes_precedence():
+    sampler = RuntimeSampler([])
+    sampler.snapshots = [(55.0, {"streaming-analytics-old": (1.0, 100.0)})]
+    sampler.fixed_snapshot = (60.001, {"streaming-analytics-a": (2.0, 101.0), "streaming-analytics-b": (3.0, 202.0)})
+
+    assert sampler.memory_at(60.0) == {
+        "target_seconds": 60.0,
+        "observed_seconds": 60.001,
+        "total_memory_mib": 303.0,
+        "running_services": 2,
+    }
 
 
 def test_watermark_coverage_counts_missing_closed_window_memberships():

@@ -112,7 +112,7 @@ def _throughput_rows(runs: list[dict[str, Any]], rates: list[int]) -> list[list[
     return rows
 
 
-def _hop_rows(runs: list[dict[str, Any]]) -> list[list[str]]:
+def _hop_rows(runs: list[dict[str, Any]], rates: list[int]) -> list[list[str]]:
     mappings = [
         ("raw topic → enriched topic", "kafka_latency_seconds", "raw_to_enriched"),
         ("enriched topic → feature topic", "kafka_latency_seconds", "enriched_to_feature"),
@@ -124,28 +124,42 @@ def _hop_rows(runs: list[dict[str, Any]]) -> list[list[str]]:
         ("remaining window processing", "database", "window_processing_seconds"),
     ]
     rows = []
-    usable = [run for run in runs if "error" not in run]
-    for label, section, key in mappings:
-        medians = [run[section][key]["median"] for run in usable if run[section][key]["median"] is not None]
-        p95s = [run[section][key]["p95"] for run in usable if run[section][key]["p95"] is not None]
-        samples = sum(run[section][key]["samples"] for run in usable)
-        rows.append([label, str(samples), _fmt(statistics.median(medians) if medians else None), _fmt(statistics.median(p95s) if p95s else None)])
+    for rate in rates:
+        usable = [run for run in runs if "error" not in run and int(run["config"]["rate"]) == rate]
+        for label, section, key in mappings:
+            medians = [run[section][key]["median"] for run in usable if run[section][key]["median"] is not None]
+            p95s = [run[section][key]["p95"] for run in usable if run[section][key]["p95"] is not None]
+            samples = sum(run[section][key]["samples"] for run in usable)
+            rows.append([str(rate), label, str(samples), _fmt(statistics.median(medians) if medians else None), _fmt(statistics.median(p95s) if p95s else None)])
+    return rows
+
+
+def _runtime_rows(runs: list[dict[str, Any]], rates: list[int]) -> list[list[str]]:
+    rows = []
+    for rate in rates:
+        selected = [run for run in runs if "error" not in run and int(run["config"]["rate"]) == rate]
+        for run in selected:
+            fixed = run.get("fixed_elapsed_resources", {})
+            rows.append([
+                str(rate),
+                str(run["config"]["repetition"]),
+                _fmt(run["startup_seconds"]),
+                str(fixed.get("running_services", 0)),
+                _fmt(fixed.get("observed_seconds")),
+                _fmt(fixed.get("total_memory_mib")),
+            ])
     return rows
 
 
 def _comparison_rows(throughput: list[dict[str, Any]], engines: list[dict[str, Any]], rates: list[int]) -> list[list[str]]:
     rows = []
-    spark_names = [
-        "streaming-analytics-spark-master",
-        "streaming-analytics-spark-worker",
-        "streaming-analytics-spark-streaming",
-    ]
+    spark_names = ["streaming-analytics-spark-streaming"]
     for rate in rates:
         cluster = [run for run in throughput if "error" not in run and int(run["config"]["rate"]) == rate]
         if cluster:
             rows.append(
                 [
-                    "Spark cluster",
+                    "Spark local[2] full stack",
                     str(rate),
                     _median_range([run["load"]["achieved_rate"] for run in cluster]),
                     _fmt(_safe_median(_resource_total(run, spark_names, "cpu_median_percent") for run in cluster)),
@@ -205,6 +219,30 @@ def render(payload: dict[str, Any]) -> str:
                 "yes" if run["drained"] else "no (timeout)",
             ]
         )
+    if payload.get("throughput_only"):
+        feature_comparison = "Not measured in this throughput-only profile."
+        feature_equivalence = "Not measured in this throughput-only profile."
+        watermark_comparison = "Not measured in this throughput-only profile."
+    else:
+        feature_comparison = _table(
+            ["Engine", "Requested events/s", "Achieved events/s", "Median CPU %", "Median memory MiB", "Median window latency s", "Drained"],
+            _comparison_rows(payload["throughput"], payload["feature_engines"], rates),
+        )
+        feature_equivalence = _table(
+            ["Common windows", "Compared values", "Mismatched values", "Mismatch rate", "Spark-only windows", "Python-only windows"],
+            [[
+                str(mismatch["common_windows"] if mismatch else 0),
+                str(mismatch["compared_values"] if mismatch else 0),
+                str(mismatch["mismatched_values"] if mismatch else 0),
+                _fmt(100 * mismatch["mismatch_rate"] if mismatch and mismatch["mismatch_rate"] is not None else None),
+                str(mismatch["spark_only_windows"] if mismatch else 0),
+                str(mismatch["python_only_windows"] if mismatch else 0),
+            ]],
+        )
+        watermark_comparison = _table(
+            ["Watermark", "Median end-to-end s", "Observed out-of-order events", "Missing closed-window memberships", "Missing %", "Drained"],
+            watermark_rows,
+        )
     lines = [
         "# Latest single-node benchmark",
         "",
@@ -225,29 +263,23 @@ def render(payload: dict[str, Any]) -> str:
         "",
         "## Per-hop latency",
         "",
-        _table(["Hop", "Samples", "Median seconds", "Median p95 seconds"], _hop_rows(payload["throughput"])),
+        _table(["Rate", "Hop", "Samples", "Median seconds", "Median p95 seconds"], _hop_rows(payload["throughput"], rates)),
+        "",
+        "## Startup and fixed-elapsed resources",
+        "",
+        _table(["Rate", "Run", "Time to healthy s", "Running services", "Memory sample elapsed s", "Total memory MiB"], _runtime_rows(payload["throughput"], rates)),
         "",
         "## Feature engine comparison",
         "",
-        _table(["Engine", "Requested events/s", "Achieved events/s", "Median CPU %", "Median memory MiB", "Median window latency s", "Drained"], _comparison_rows(payload["throughput"], payload["feature_engines"], rates)),
+        feature_comparison,
         "",
         "## Shared-sample feature equivalence",
         "",
-        _table(
-            ["Common windows", "Compared values", "Mismatched values", "Mismatch rate", "Spark-only windows", "Python-only windows"],
-            [[
-                str(mismatch["common_windows"] if mismatch else 0),
-                str(mismatch["compared_values"] if mismatch else 0),
-                str(mismatch["mismatched_values"] if mismatch else 0),
-                _fmt(100 * mismatch["mismatch_rate"] if mismatch and mismatch["mismatch_rate"] is not None else None),
-                str(mismatch["spark_only_windows"] if mismatch else 0),
-                str(mismatch["python_only_windows"] if mismatch else 0),
-            ]],
-        ),
+        feature_equivalence,
         "",
         "## Watermark trade-off at 200 events/s and 10% configured disorder",
         "",
-        _table(["Watermark", "Median end-to-end s", "Observed out-of-order events", "Missing closed-window memberships", "Missing %", "Drained"], watermark_rows),
+        watermark_comparison,
         "",
         "## Scope",
         "",
@@ -269,10 +301,12 @@ def main() -> None:
     profile.add_argument("--quick", action="store_true")
     profile.add_argument("--full", action="store_true")
     parser.add_argument("--repetitions", type=int, default=None)
+    parser.add_argument("--rates", type=int, nargs="+", default=None)
+    parser.add_argument("--throughput-only", action="store_true")
     args = parser.parse_args()
 
     full = args.full
-    rates = FULL_RATES if full else [50, 200]
+    rates = args.rates or (FULL_RATES if full else [50, 200])
     duration = 300 if full else 60
     repetitions = args.repetitions if args.repetitions is not None else (3 if full else 1)
     payload: dict[str, Any] = {
@@ -280,6 +314,7 @@ def main() -> None:
         "generated_at": datetime.now(UTC).isoformat(),
         "duration_seconds": duration,
         "repetitions": repetitions,
+        "throughput_only": args.throughput_only,
         "rates": rates,
         "hardware": hardware(),
         "throughput": [],
@@ -294,34 +329,35 @@ def main() -> None:
             config = RunConfig(rate=rate, duration=duration, repetition=repetition, watermark_seconds=throughput_watermark)
             _run_recorded(payload, "throughput", f"rate={rate} repetition={repetition}", lambda config=config: run_once(config))
 
-    for mode in ("spark-local", "python"):
-        for rate in rates:
-            config = RunConfig(rate=rate, duration=duration, repetition=1, watermark_seconds=throughput_watermark)
-            _run_recorded(
-                payload,
-                "feature_engines",
-                f"mode={mode} rate={rate}",
-                lambda config=config, mode=mode: run_feature_engine(config, mode),
-            )
+    if not args.throughput_only:
+        for mode in ("spark-local", "python"):
+            for rate in rates:
+                config = RunConfig(rate=rate, duration=duration, repetition=1, watermark_seconds=throughput_watermark)
+                _run_recorded(
+                    payload,
+                    "feature_engines",
+                    f"mode={mode} rate={rate}",
+                    lambda config=config, mode=mode: run_feature_engine(config, mode),
+                )
 
-    shared_duration = duration if full else 90
-    shared = RunConfig(rate=200, duration=shared_duration, repetition=1, watermark_seconds=throughput_watermark)
-    _run_recorded(
-        payload,
-        "feature_engines",
-        "shared Spark/Python feature sample",
-        lambda: run_feature_engine(shared, "spark-cluster", shared_python=True),
-    )
-
-    for watermark in (120, 60, 30):
-        config = RunConfig(
-            rate=200,
-            duration=duration,
-            repetition=1,
-            out_of_order_fraction=0.1,
-            watermark_seconds=watermark,
+        shared_duration = duration if full else 90
+        shared = RunConfig(rate=200, duration=shared_duration, repetition=1, watermark_seconds=throughput_watermark)
+        _run_recorded(
+            payload,
+            "feature_engines",
+            "shared Spark/Python feature sample",
+            lambda: run_feature_engine(shared, "spark-local", shared_python=True),
         )
-        _run_recorded(payload, "watermarks", f"watermark={watermark}", lambda config=config: run_once(config))
+
+        for watermark in (120, 60, 30):
+            config = RunConfig(
+                rate=200,
+                duration=duration,
+                repetition=1,
+                out_of_order_fraction=0.1,
+                watermark_seconds=watermark,
+            )
+            _run_recorded(payload, "watermarks", f"watermark={watermark}", lambda config=config: run_once(config))
 
     RESULT.parent.mkdir(parents=True, exist_ok=True)
     RESULT.write_text(render(payload), encoding="utf-8")

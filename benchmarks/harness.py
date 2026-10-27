@@ -19,6 +19,7 @@ from benchmarks.measurements import RuntimeSampler, TopicCapture, parse_datetime
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ["docker-compose", "-f", str(ROOT / "docker-compose.yml"), "-f", str(ROOT / "benchmarks/compose.yml")]
+ONE_SHOT_SERVICES = {"kafka-init", "schema-bootstrap"}
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,8 @@ def _run(command: list[str], environment: dict[str, str], *, capture: bool = Tru
 
 def _wait_healthy(environment: dict[str, str], timeout_seconds: int = 600) -> float:
     started = time.monotonic()
+    configured = set(_run(COMPOSE + ["config", "--services"], environment).stdout.split())
+    expected = len(configured - ONE_SHOT_SERVICES)
     while time.monotonic() - started < timeout_seconds:
         ids = _run(COMPOSE + ["ps", "--status", "running", "-q"], environment, capture=True).stdout.split()
         states = []
@@ -56,12 +59,12 @@ def _wait_healthy(environment: dict[str, str], timeout_seconds: int = 600) -> fl
                 capture_output=True,
                 text=True,
             ).stdout.split()
-        if len(ids) == 15 and states.count("healthy") == 15:
+        if len(ids) == expected and states.count("healthy") == expected:
             return time.monotonic() - started
         if "unhealthy" in states:
             raise RuntimeError(f"Stack became unhealthy: {states}")
         time.sleep(2)
-    raise TimeoutError("Stack did not reach 15/15 healthy services")
+    raise TimeoutError(f"Stack did not reach {expected}/{expected} healthy services")
 
 
 def _current_lag() -> dict[str, int]:
@@ -198,6 +201,7 @@ def run_once(config: RunConfig) -> dict[str, Any]:
         make_producer("127.0.0.1:9092"),
     )
     sampler.stop()
+    fixed_elapsed_resources = sampler.memory_at(60.0)
     drain_seconds, drained = _wait_for_drain(config.drain_timeout_seconds, capture, load.delivered)
     time.sleep(5)
     capture.stop()
@@ -225,5 +229,6 @@ def run_once(config: RunConfig) -> dict[str, Any]:
         },
         "consumer_lag": lag,
         "resources": resources,
+        "fixed_elapsed_resources": fixed_elapsed_resources,
         "capture_errors": len(capture.errors),
     }

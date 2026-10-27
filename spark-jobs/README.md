@@ -33,12 +33,12 @@ The Docker image is based on `apache/spark:3.5.3` and submits the application wi
 
 ```bash
 /opt/spark/bin/spark-submit \
-  --master spark://streaming-analytics-spark-master:7077 \
-  --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3 \
+  --master 'local[2]' \
+  --jars /opt/spark/jars/org.apache.spark_spark-sql-kafka-0-10_2.12-3.5.3.jar,... \
   app/main.py
 ```
 
-The Kafka connector package is resolved by Spark at container startup.
+The Kafka connector jars are cached in the image at build time.
 
 ## Configuration
 

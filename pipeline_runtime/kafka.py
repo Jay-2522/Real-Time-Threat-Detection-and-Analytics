@@ -62,6 +62,47 @@ class DeliveryLoop:
                              self.service, message.topic(), message.partition(), message.offset())
             raise
 
+    def process_batch(self, messages, handler):
+        if not messages:
+            return
+        epoch = self.epoch
+        try:
+            handler(messages)
+            if epoch != self.epoch:
+                raise RuntimeError("Partition ownership changed before batch acknowledgement")
+            from confluent_kafka import TopicPartition
+            latest = {}
+            for message in messages:
+                coordinate = (message.topic(), message.partition())
+                latest[coordinate] = max(message.offset(), latest.get(coordinate, -1))
+            offsets = [
+                TopicPartition(topic, partition, offset + 1)
+                for (topic, partition), offset in latest.items()
+            ]
+            results = self.consumer.commit(offsets=offsets, asynchronous=False)
+            if results and any(partition.error for partition in results):
+                raise RuntimeError(f"Batch offset commit failed: {results}")
+            COMMITS.labels(self.service).inc(len(messages))
+            LAST_SUCCESS.labels(self.service).set(time.time())
+            if time.monotonic() - self.last_lag_check >= 10:
+                try:
+                    for position in offsets:
+                        _, high = self.consumer.get_watermark_offsets(
+                            TopicPartition(position.topic, position.partition), timeout=1, cached=False)
+                        LAG.labels(self.service, position.topic, str(position.partition)).set(
+                            max(0, high - position.offset))
+                    self.last_lag_check = time.monotonic()
+                except Exception:
+                    logger.warning("consumer_lag_observation_unavailable service=%s", self.service)
+        except Exception:
+            FAILURES.labels(self.service).inc()
+            first, last = messages[0], messages[-1]
+            logger.exception(
+                "input_batch_unacknowledged service=%s count=%s first=%s:%s:%s last=%s:%s:%s",
+                self.service, len(messages), first.topic(), first.partition(), first.offset(),
+                last.topic(), last.partition(), last.offset())
+            raise
+
     def run(self, topics, handler, running):
         try:
             self.subscribe(topics)
@@ -79,6 +120,27 @@ class DeliveryLoop:
             raise
         finally:
             self.consumer.close()  # auto commit is disabled, including on close.
+
+    def run_batch(self, topics, handler, running, *, batch_size=200, batch_wait_seconds=0.05):
+        try:
+            self.subscribe(topics)
+            while running():
+                first = self.consumer.poll(1.0)
+                if first is None:
+                    continue
+                messages = [first]
+                if batch_size > 1:
+                    messages.extend(self.consumer.consume(
+                        num_messages=batch_size - 1, timeout=batch_wait_seconds))
+                for message in messages:
+                    if message.error():
+                        raise RuntimeError(str(message.error()))
+                self.process_batch(messages, handler)
+        except Exception:
+            time.sleep(5)
+            raise
+        finally:
+            self.consumer.close()
 
 
 def publish_confirmed(producer, *, topic, key, value, timeout=15):

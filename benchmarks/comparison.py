@@ -20,7 +20,6 @@ from benchmarks.measurements import RuntimeSampler, TopicCapture, parse_datetime
 
 
 BASE_COMPOSE = ["docker-compose", "-f", str(ROOT / "docker-compose.yml"), "-f", str(ROOT / "benchmarks/compose.yml")]
-LOCAL_COMPOSE = BASE_COMPOSE + ["-f", str(ROOT / "benchmarks/compose.spark-local.yml")]
 
 
 def _feature_key(payload: dict[str, Any]) -> tuple[str, float, float]:
@@ -122,7 +121,7 @@ def _run(command: list[str], environment: dict[str, str]) -> subprocess.Complete
 
 
 def _clean(environment: dict[str, str]) -> None:
-    _run(LOCAL_COMPOSE + ["down", "-v", "--remove-orphans"], environment)
+    _run(BASE_COMPOSE + ["down", "-v", "--remove-orphans"], environment)
 
 
 def _wait_container(name: str, *, completed: bool = False, timeout: int = 600) -> None:
@@ -175,10 +174,10 @@ def _start_plain_consumer(config: RunConfig, group_id: str, output: Path) -> sub
 
 
 def run_feature_engine(config: RunConfig, mode: str, *, shared_python: bool = False) -> dict[str, Any]:
-    if mode not in {"spark-cluster", "spark-local", "python"}:
+    if mode not in {"spark-local", "python"}:
         raise ValueError(f"Unknown feature engine: {mode}")
     environment = _environment(config)
-    compose = LOCAL_COMPOSE if mode == "spark-local" else BASE_COMPOSE
+    compose = BASE_COMPOSE
     _clean(environment)
     run_id = f"feature-{mode}-{int(config.rate)}-{config.repetition}-{uuid4().hex[:8]}"
 
@@ -195,8 +194,6 @@ def run_feature_engine(config: RunConfig, mode: str, *, shared_python: bool = Fa
         else:
             _run(compose + ["up", "--build", "-d", "spark-streaming"], environment)
             _wait_container("streaming-analytics-spark-streaming")
-            if mode == "spark-local":
-                _run(compose + ["stop", "spark-master", "spark-worker"], environment)
             capture = TopicCapture("127.0.0.1:9092", f"benchmark-capture-{run_id}")
             capture.start()
             runtime_sampler = RuntimeSampler(compose)

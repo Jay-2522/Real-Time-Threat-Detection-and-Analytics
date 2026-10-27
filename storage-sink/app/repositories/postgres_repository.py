@@ -1,5 +1,6 @@
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
+from collections import defaultdict
 
 from app.db.models import AnalyticsMetric, AnomalyPrediction, DeadLetterEvent, FeatureSnapshot, RiskMetric, TelemetryEvent
 from app.schemas.records import StorageRecord
@@ -30,6 +31,35 @@ class PostgresStorageRepository:
             statement = statement.on_conflict_do_nothing()
 
         session.execute(statement)
+
+    def persist_many(self, session: Session, records: list[StorageRecord]) -> None:
+        grouped = defaultdict(list)
+        for record in records:
+            grouped[self._model_for_record(record)].append(self._values_for_record(record))
+        for model, values in grouped.items():
+            statement = insert(model).values(values)
+            if model is TelemetryEvent:
+                statement = statement.on_conflict_do_update(
+                    constraint="uq_telemetry_events_source_event",
+                    set_={
+                        "raw_payload": statement.excluded.raw_payload,
+                        "risk_score": statement.excluded.risk_score,
+                        "severity": statement.excluded.severity,
+                    },
+                )
+            elif model is AnomalyPrediction:
+                statement = statement.on_conflict_do_update(
+                    constraint="uq_anomaly_predictions_prediction_id",
+                    set_={
+                        "raw_payload": statement.excluded.raw_payload,
+                        "ml_risk_score": statement.excluded.ml_risk_score,
+                        "severity": statement.excluded.severity,
+                        "explanation": statement.excluded.explanation,
+                    },
+                )
+            else:
+                statement = statement.on_conflict_do_nothing()
+            session.execute(statement)
 
     @staticmethod
     def _model_for_record(record: StorageRecord):

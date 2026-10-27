@@ -1,6 +1,7 @@
 """PostgreSQL receipt + side-effect outbox, committed with each business transaction."""
 import logging
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import String, Text, Integer, Boolean, DateTime, select
 from sqlalchemy.dialects.postgresql import JSONB, insert
@@ -42,6 +43,13 @@ class IdentityConflict(ValueError):
     pass
 
 
+@dataclass(frozen=True)
+class BatchClaimResult:
+    inserted: set[str]
+    duplicates: set[str]
+    conflicts: set[str]
+
+
 def claim(session, service, key, payload):
     fingerprint = digest(payload)
     inserted = session.execute(insert(Receipt).values(service=service, key=key, fingerprint=fingerprint)
@@ -54,9 +62,48 @@ def claim(session, service, key, payload):
     return False
 
 
+def claim_many(session, service, payloads):
+    """Claim stable identities in two bounded round trips, preserving conflict detection."""
+    if not payloads:
+        return BatchClaimResult(set(), set(), set())
+    fingerprints = {key: digest(payload) for key, payload in payloads.items()}
+    keys = list(fingerprints)
+    existing = dict(session.execute(
+        select(Receipt.key, Receipt.fingerprint).where(Receipt.service == service, Receipt.key.in_(keys))
+    ).all())
+    conflicts = {key for key, fingerprint in existing.items() if fingerprint != fingerprints[key]}
+    duplicates = set(existing) - conflicts
+    pending = [key for key in keys if key not in existing]
+    inserted = set()
+    if pending:
+        statement = insert(Receipt).values([
+            {"service": service, "key": key, "fingerprint": fingerprints[key]} for key in pending
+        ]).on_conflict_do_nothing().returning(Receipt.key)
+        inserted = set(session.scalars(statement).all())
+        raced = set(pending) - inserted
+        if raced:
+            raced_rows = dict(session.execute(
+                select(Receipt.key, Receipt.fingerprint).where(
+                    Receipt.service == service, Receipt.key.in_(raced)
+                )
+            ).all())
+            conflicts.update(key for key in raced if raced_rows.get(key) != fingerprints[key])
+            duplicates.update(raced - conflicts)
+    return BatchClaimResult(inserted, duplicates, conflicts)
+
+
 def enqueue(session, service, key, target, payload):
     session.execute(insert(Outbox).values(service=service, key=key, target=target, payload=payload)
                     .on_conflict_do_nothing())
+
+
+def enqueue_many(session, service, target, payloads):
+    if not payloads:
+        return
+    session.execute(insert(Outbox).values([
+        {"service": service, "key": key, "target": target, "payload": payload}
+        for key, payload in payloads.items()
+    ]).on_conflict_do_nothing())
 
 
 class OutboxWorker:

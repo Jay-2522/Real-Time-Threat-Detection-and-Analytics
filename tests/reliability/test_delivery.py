@@ -15,6 +15,11 @@ class Client:
     def commit(self, **kwargs): self.calls.append('commit'); return []
 
 
+class BatchClient:
+    def __init__(self): self.commits=[]
+    def commit(self, **kwargs): self.commits.append(kwargs); return []
+
+
 def test_success_commits_after_processing():
     c=Client(); loop=DeliveryLoop(c,'test')
     loop.process(Message(), lambda msg:c.calls.append('processed'))
@@ -34,6 +39,17 @@ def test_failure_never_acknowledges_inflight_record(failure):
         c.commit=commit
     with pytest.raises(RuntimeError): loop.process(Message(),process)
     assert not c.calls
+
+
+def test_failure_mid_batch_never_commits_offsets():
+    client = BatchClient()
+    loop = DeliveryLoop(client, 'test-batch')
+    messages = [Message(), Message()]
+
+    with pytest.raises(RuntimeError, match='database failed'):
+        loop.process_batch(messages, lambda _messages: (_ for _ in ()).throw(RuntimeError('database failed')))
+
+    assert client.commits == []
 
 
 @pytest.mark.parametrize('result',['error','timeout','missing'])

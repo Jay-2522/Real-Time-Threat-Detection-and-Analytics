@@ -30,6 +30,36 @@ def count(db,table,column,value):
     with db.connect() as c: return c.scalar(text(f'SELECT count(*) FROM {table} WHERE {column}=:value'),{'value':value})
 
 
+def test_storage_batch_insert_and_duplicate_replay_are_idempotent(db):
+    class Message:
+        def __init__(self, payload, offset):
+            self.payload = payload
+            self.position = offset
+        def topic(self): return 'telemetry.login.events'
+        def partition(self): return 0
+        def offset(self): return self.position
+        def value(self): return json.dumps(self.payload).encode()
+
+    first, second = event(), event()
+    messages = [Message(first, 0), Message(second, 1)]
+    sink = storage(db)
+
+    sink._handle_batch(messages)
+    sink._handle_batch(messages)
+
+    assert count(db, 'telemetry_events', 'event_id', first['event_id']) == 1
+    assert count(db, 'telemetry_events', 'event_id', second['event_id']) == 1
+    with db.connect() as connection:
+        receipts = connection.scalar(text(
+            "SELECT count(*) FROM pipeline_receipts WHERE service='storage' AND key IN (:first, :second)"
+        ), {'first': logical_key('telemetry.login.events', first), 'second': logical_key('telemetry.login.events', second)})
+        outbox = connection.scalar(text(
+            "SELECT count(*) FROM pipeline_outbox WHERE service='storage' AND key IN (:first, :second)"
+        ), {'first': logical_key('telemetry.login.events', first), 'second': logical_key('telemetry.login.events', second)})
+    assert receipts == 2
+    assert outbox == 2
+
+
 def test_real_database_disconnect_no_ack_then_retry(db):
     topic,group=kafka_case(); p=event(); send(topic,json.dumps(p).encode())
     c,loop=consumer(topic,group); msg=next_message(c)
@@ -77,6 +107,10 @@ def test_concurrent_alerts_and_replay_do_not_inflate_incident(db):
     with ThreadPoolExecutor(2) as pool: list(pool.map(lambda _:consumer_obj._handle_message(topic,wire),range(2)))
     consumer_obj._handle_message(topic,wire)
     assert count(db,'alerts','entity_id',entity)==1
+    with db.begin() as connection:
+        connection.execute(text(
+            "UPDATE alert_dedup_cache SET last_seen=now()-interval '10 minutes' WHERE entity_id=:entity"
+        ), {'entity': entity})
     p2={**p,'prediction_id':str(uuid.uuid4())}
     consumer_obj._handle_message(topic,json.dumps(p2).encode())
     assert count(db,'alerts','entity_id',entity)==2
