@@ -1,407 +1,295 @@
-<div align="center">
+# Streaming Threat Analytics Lab
 
-# Real-Time Streaming Analytics Platform
+A single-node streaming security analytics lab that moves synthetic telemetry through Kafka, Spark, detection, durable storage, and an authenticated dashboard.
 
-[![Fast Checks](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/fast-checks.yml/badge.svg?branch=ci%2Fgithub-actions)](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/fast-checks.yml?query=branch%3Aci%2Fgithub-actions)
+[![Fast Checks](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/fast-checks.yml/badge.svg?branch=dev)](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/fast-checks.yml?query=branch%3Adev)
+[![Stack Smoke](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/stack-smoke.yml/badge.svg?branch=dev)](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/stack-smoke.yml?query=branch%3Adev)
+[![Security Scans](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/security-scans.yml/badge.svg?branch=dev)](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/security-scans.yml?query=branch%3Adev)
 
-### AI-powered real-time SOC/XDR analytics platform for streaming telemetry, anomaly detection, threat intelligence, and incident response.
+## Quickstart
 
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=0B1220)
-![Kafka](https://img.shields.io/badge/Apache%20Kafka-Streaming-231F20?style=for-the-badge&logo=apachekafka&logoColor=white)
-![Spark](https://img.shields.io/badge/Apache%20Spark-Analytics-E25A1C?style=for-the-badge&logo=apachespark&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Storage-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
-![Grafana](https://img.shields.io/badge/Grafana-Dashboards-F46800?style=for-the-badge&logo=grafana&logoColor=white)
-![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+Prerequisites are Git, a running Docker engine, and either Docker Compose v2
+(`docker compose`) or the compatible `docker-compose` command. If Docker runs in
+a VM such as Colima, clone into a host directory shared with that VM. A first
+image build takes longer than one minute; the measured fresh-clone time is
+reported in the delivery notes for this documentation change.
 
-</div>
+~~~bash
+export BRANCH=dev
+git clone --branch "$BRANCH" \
+  https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics.git \
+  streaming-threat-analytics
+cd streaming-threat-analytics
+./scripts/start_full.sh --build
 
----
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  COMPOSE="docker-compose"
+fi
+$COMPOSE exec backend python -m app.auth.provision
+~~~
 
-## Project Overview
+For a disposable local demonstration, enter:
 
-**Real-Time Streaming Analytics Platform** is a fully local, open-source, production-style AI SOC/XDR system that processes cybersecurity telemetry in real time.
+~~~text
+Username: local-admin
+Password: Local-only-demo-2026!
+~~~
 
-The platform simulates enterprise telemetry, streams it through Kafka, enriches it with Spark Structured Streaming, applies ML-based anomaly detection, correlates incidents, maps detections to MITRE ATT&CK, enriches entities with local threat intelligence, and presents the results through a polished React dashboard and FastAPI APIs.
+Those are documentation-only local credentials, not an automatic account or a secret. Never reuse them elsewhere. Open http://localhost:5173 and sign in.
 
-It is designed to demonstrate practical experience across:
+Replay the repository's synthetic Cowrie sample:
 
-- real-time telemetry processing
-- distributed streaming analytics
-- AI/ML anomaly detection
-- cybersecurity analytics and SOC workflows
-- threat intelligence correlation
-- observability and platform health monitoring
-- Dockerized microservices architecture
+~~~bash
+$COMPOSE run --rm -T --no-deps \
+  -v "$PWD/data/samples:/samples:ro" \
+  telemetry-producer python -m app.main cowrie-replay \
+  --file /samples/cowrie-synthetic.json --time-shift
+./scripts/assert_honeypot_detection.sh
+~~~
 
-Everything runs locally with free/open-source tools. No paid APIs, managed cloud services, or external SaaS dependencies are required.
+The assertion waits for the brute-force alert, its correlated incident, and authenticated dashboard API visibility. The Cowrie adapter is implemented and tested with this synthetic sample but has not been deployed against a live honeypot.
 
-Measured single-node throughput, latency, resource use, feature-engine comparisons,
-and watermark trade-offs are published in [the latest benchmark tables](benchmarks/results/latest.md).
-Regenerate a one-minute smoke profile with `python -m benchmarks.run --quick`,
-or the complete five-minute sweep with `python -m benchmarks.run --full`.
+## What this is—and is not
 
----
+This is a local, single-organization engineering lab for studying streaming delivery, event-time windows, detection evaluation, recovery, and an analyst-facing UI.
 
-## Key Features
+It is not:
 
-| Capability | Description |
-| --- | --- |
-| **Real-Time Telemetry Ingestion** | Generates synthetic cybersecurity, login, API, network, and anomaly telemetry. |
-| **Kafka Streaming Pipeline** | Uses Kafka topics for telemetry, analytics, ML predictions, alerts, and dead-letter handling. |
-| **Spark Streaming Analytics** | Performs structured streaming transformations, aggregations, and feature engineering. |
-| **ML Anomaly Detection** | Uses Isolation Forest inference over engineered telemetry features. |
-| **Threat Intelligence Engine** | Performs local IOC enrichment, entity profiling, threat scoring, and attack timeline construction. |
-| **MITRE ATT&CK Mapping** | Maps detections to tactics, techniques, MITRE IDs, and kill-chain stages. |
-| **Detection Engineering** | Supports Sigma-like YAML detection rules and rule hit analytics. |
-| **Incident Correlation** | Groups related alerts into incidents with severity escalation and timelines. |
-| **Real-Time Alerting** | Streams live SOC alerts and incident updates through FastAPI WebSockets. |
-| **Search + Persistence** | Stores structured records in PostgreSQL and indexes searchable data in Elasticsearch. |
-| **Observability** | Exposes Prometheus metrics and Grafana dashboards for service and pipeline monitoring. |
-| **Enterprise Dashboard** | React + TypeScript dashboard for SOC analytics, threat hunting, entities, alerts, incidents, and system health. |
-| **Dockerized Microservices** | Runs as a local Docker Compose platform with full and laptop-friendly startup modes. |
+- a traffic blocker, endpoint responder, or automated containment system;
+- a replacement for a SIEM;
+- a multi-tenant or multi-organization service;
+- a multi-node or high-availability deployment;
+- evidence of detection quality on a live network.
 
----
+Events are synthetic by default. CIC-IDS-2017 is used only for offline evaluation and never enters the running stack. The separate hardened deployment is experimental and is not covered by CI.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    A["Telemetry Producer"] --> B["Kafka"]
-    B --> C["Spark Streaming"]
-    C --> D["ML Inference"]
-    D --> E["Threat Intelligence Engine"]
-    E --> F["Alert Engine"]
-    F --> G["PostgreSQL"]
-    E --> G
-    C --> G
-    G --> H["FastAPI Backend"]
-    H --> I["React Dashboard"]
-    H --> J["Grafana + Prometheus"]
-```
+~~~mermaid
+flowchart LR
+    P["Synthetic producer or Cowrie replay"] --> K["Kafka + ZooKeeper"]
+    K --> S["Spark Structured Streaming local[2]"]
+    S --> K
+    K --> M["ML inference"]
+    M --> K
+    K --> A["Alert engine"]
+    K --> T["Threat-intelligence engine"]
+    K --> SS["Storage sink"]
+    A --> PG["PostgreSQL source of truth"]
+    T --> PG
+    SS --> PG
+    A --> ES["Elasticsearch search projection"]
+    T --> ES
+    SS --> ES
+    PG --> API["FastAPI REST and WebSockets"]
+    ES --> API
+    API --> UI["React dashboard"]
+    API --> PR["Prometheus"]
+    M --> PR
+    A --> PR
+    T --> PR
+    SS --> PR
+    PR -. optional dashboards profile .-> G["Grafana"]
+~~~
 
-<details>
-<summary><strong>Detailed Data Flow</strong></summary>
+One event is published to Kafka, normalized by Spark, and written to an enriched topic. Spark also groups records into a 60-second event-time window with a 30-second slide and a 2-minute watermark. ML inference consumes the resulting 18-field feature record. The alert engine can evaluate enriched records directly or evaluate predictions and windowed features. The storage, alert, and threat services commit authoritative effects to PostgreSQL before committing Kafka offsets; Elasticsearch is filled asynchronously from a durable outbox.
 
-1. Synthetic producers emit telemetry into Kafka topics.
-2. Spark Structured Streaming consumes telemetry and produces enriched analytics and feature streams.
-3. ML inference consumes analytics topics and publishes anomaly predictions.
-4. The alert engine evaluates prediction and analytics streams to create SOC alerts and incidents.
-5. The threat intelligence engine enriches activity with local IOC feeds, MITRE mappings, rule hits, and entity risk profiles.
-6. PostgreSQL and Elasticsearch persist structured and searchable records.
-7. FastAPI exposes REST and WebSocket APIs.
-8. React visualizes dashboards, alerts, incidents, threat intelligence, MITRE coverage, entities, timelines, and observability.
-9. Prometheus and Grafana provide platform health and metrics visibility.
+The windowed path must wait for event time to advance far enough to close a window. The 60-second window and 2-minute watermark therefore make minutes of deliberate delay possible before processing and queueing time are added.
 
-</details>
+See [the current architecture](docs/architecture.md) and [delivery contract](docs/KAFKA_DELIVERY_CONTRACT.md).
 
-For deeper diagrams, see [docs/architecture.md](docs/architecture.md).
+## Results
 
----
+### Offline detection evaluation
 
-## Tech Stack
+The evaluator uses the fixed day split in [eval/results/latest.md](eval/results/latest.md): Monday benign windows train the Isolation Forest, Tuesday tunes thresholds, and Wednesday through Friday are final test days.
 
-### Frontend
+| Detector | Test day | TN | FP | FN | TP | Precision | Recall | F1 | FPR | Alerts/benign hour |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Threshold rules | Wednesday | 38343 | 870 | 26 | 60 | 0.064516 | 0.697674 | 0.118110 | 0.022187 | 98.014184 |
+| Isolation Forest | Wednesday | 38486 | 727 | 15 | 71 | 0.088972 | 0.825581 | 0.160633 | 0.018540 | 79.432624 |
+| Random Forest (supervised reference upper bound) | Wednesday | 39213 | 0 | 85 | 1 | 1.000000 | 0.011628 | 0.022989 | 0.000000 | 0.000000 |
+| All benign baseline | Wednesday | 39213 | 0 | 86 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| Threshold rules | Thursday | 35889 | 805 | 78 | 18 | 0.021871 | 0.187500 | 0.039173 | 0.021938 | 94.307692 |
+| Isolation Forest | Thursday | 36040 | 654 | 77 | 19 | 0.028232 | 0.197917 | 0.049415 | 0.017823 | 77.076923 |
+| Random Forest (supervised reference upper bound) | Thursday | 36694 | 0 | 96 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| All benign baseline | Thursday | 36694 | 0 | 96 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| Threshold rules | Friday | 33895 | 721 | 610 | 87 | 0.107673 | 0.124821 | 0.115615 | 0.020829 | 89.890110 |
+| Isolation Forest | Friday | 34041 | 575 | 608 | 89 | 0.134036 | 0.127690 | 0.130786 | 0.016611 | 71.648352 |
+| Random Forest (supervised reference upper bound) | Friday | 34616 | 0 | 696 | 1 | 1.000000 | 0.001435 | 0.002865 | 0.000000 | 0.000000 |
+| All benign baseline | Friday | 34616 | 0 | 697 | 0 | 0.000000 | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
 
-| Technology | Purpose |
+High benign accuracy is not useful detection evidence:
+
+| Test day | All-benign accuracy | Missed attack windows |
+| --- | --- | --- |
+| Wednesday | 0.997812 | 86 |
+| Thursday | 0.997391 | 96 |
+| Friday | 0.980262 | 697 |
+
+Per-attack recall:
+
+| Test day and attack | Threshold rules | Isolation Forest | Supervised reference | All benign |
+| --- | ---: | ---: | ---: | ---: |
+| Wednesday: DoS GoldenEye | 1.000000 | 1.000000 | 0.000000 | 0.000000 |
+| Wednesday: DoS Hulk | 0.952381 | 0.904762 | 0.000000 | 0.000000 |
+| Wednesday: DoS Slowhttptest | 0.473684 | 0.578947 | 0.000000 | 0.000000 |
+| Wednesday: DoS slowloris | 0.851852 | 0.851852 | 0.037037 | 0.000000 |
+| Wednesday: Heartbleed | 0.000000 | 0.909091 | 0.000000 | 0.000000 |
+| Thursday: Infiltration | 0.642857 | 0.678571 | 0.000000 | 0.000000 |
+| Thursday: Web Attack – Brute Force | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| Thursday: Web Attack – Sql Injection | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| Thursday: Web Attack – XSS | 0.000000 | 0.000000 | 0.000000 | 0.000000 |
+| Friday: Bot | 0.083333 | 0.086420 | 0.000000 | 0.000000 |
+| Friday: DDoS | 1.000000 | 1.000000 | 0.000000 | 0.000000 |
+| Friday: PortScan | 0.407407 | 0.407407 | 0.037037 | 0.000000 |
+
+The honest reading is that precision is low, the web attacks are entirely missed, and the supervised reference does not provide a useful upper bound under this split. Only 4 of the 18 production features have a real equivalent in these flow windows, so the production Isolation Forest was not scored by filling the other fields with invented values.
+
+### Single-node benchmarks
+
+Current results are in [benchmarks/results/latest.md](benchmarks/results/latest.md). The pre-batching baseline is preserved in Git at commit d16a262.
+
+Hardware for both result sets:
+
+| Item | Value |
 | --- | --- |
-| React | Enterprise dashboard UI |
-| TypeScript | Typed frontend development |
-| Vite | Frontend build tooling |
-| Tailwind CSS | Dark SOC/XDR styling |
-| Recharts | Analytics charts |
-| D3.js | Graph and data visualization support |
-| React Flow | Attack path and relationship graph visualization |
-| Framer Motion | UI animation |
-| Axios | API client |
+| machine | MacBook Air |
+| chip | Apple M5 |
+| ram | 16 GB |
+| os | macOS 26.7.1 (25G241) |
+| docker | client=29.9.1 server=29.5.2 |
+| docker vm | Colima 4 CPU, 8 GiB RAM, aarch64 |
 
-### Backend
+Before and after storage batching:
 
-| Technology | Purpose |
+| Version | Requested events/s | Runs | Achieved median (range) | Persisted % median (range) | Max lag median (range) | First observed bottleneck |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Before | 200 | 3 | 200.00 (200.00–200.00) | 65.58 (58.91–66.36) | 88936 (85100–91844) | streaming-analytics-storage-sink |
+| Before | 500 | 3 | 499.99 (499.96–500.00) | 24.52 (22.51–24.90) | 268406 (258772–278162) | streaming-analytics-storage-sink |
+| Before | 1000 | 3 | 999.94 (999.85–999.98) | 16.76 (15.87–16.79) | 568727 (562251–571398) | streaming-analytics-storage-sink |
+| After | 200 | 2 | 199.92 (199.92–199.93) | 100.00 (100.00–100.00) | 87244 (87002–87486) | streaming-analytics-threat-intelligence |
+| After | 500 | 2 | 499.98 (499.97–500.00) | 100.00 (100.00–100.00) | 235000 (233667–236333) | streaming-analytics-threat-intelligence |
+| After | 1000 | 2 | 999.99 (999.98–999.99) | 100.00 (100.00–100.00) | 463104 (453498–472709) | streaming-analytics-threat-intelligence |
+
+The storage sink originally used one transaction and synchronous offset commit per event. It now batches receipt claims, business upserts, and outbox work, then advances offsets only after the transaction commits. Persistence reached 100% after drain at all three measured rates. Threat intelligence, which performs serialized entity and timeline updates, became the first observed lagging consumer. Latency above about 200 events/s is inflated by backlog; these figures are single-node laptop measurements, not capacity for another machine.
+
+Historical engine comparison that motivated the default Spark local mode:
+
+| Engine | Requested events/s | Achieved events/s | Median CPU % | Median memory MiB | Median window latency s | Drained |
+| --- | --- | --- | --- | --- | --- | --- |
+| Spark cluster | 200 | 200.00 (200.00–200.00) | 12.77 | 2110.89 | 135.85 | no |
+| Spark local[2] | 200 | 200.00 | 0.96 | 943.00 | 151.09 | yes |
+| Plain Python | 200 | 200.37 | 8.20 | 30.75 | 120.26 | yes |
+| Spark cluster | 500 | 499.99 (499.96–500.00) | 23.07 | 2088.08 | 135.83 | no |
+| Spark local[2] | 500 | 500.00 | 1.16 | 968.80 | 150.81 | yes |
+| Plain Python | 500 | 501.29 | 15.90 | 37.67 | 120.11 | yes |
+| Spark cluster | 1000 | 999.94 (999.85–999.98) | 46.85 | 2405.02 | 140.51 | no |
+| Spark local[2] | 1000 | 1000.00 | 0.69 | 1083.39 | 148.08 | yes |
+| Plain Python | 1000 | 1002.76 | 15.60 | 54.97 | 120.06 | yes |
+
+The shared sample compared 600 common windows and 10800 feature values with 0 mismatches, 0 Spark-only windows, and 0 Python-only windows. The repository keeps Spark rather than replacing it; local mode removes unnecessary cluster coordination for this single-node stack.
+
+Watermark trade-off at 200 events/s with 10% configured disorder:
+
+| Watermark | Median end-to-end s | Observed out-of-order events | Missing closed-window memberships | Missing % | Drained |
+| --- | --- | --- | --- | --- | --- |
+| 120 s | 219.87 | 5988 | 15 | 0.03 | no (timeout) |
+| 60 s | 164.06 | 5988 | 943 | 1.16 | no (timeout) |
+| 30 s | 128.52 | 5988 | 2977 | 2.88 | no (timeout) |
+
+Shorter watermarks reduced measured delay but dropped more late closed-window memberships. The default remains 2 minutes.
+
+### Continuous integration
+
+Fast Checks runs data-safety and shell checks, Python linting and tests, storage tests, a PostgreSQL migration integration, frontend lint/test/build, and a Chromium authentication workflow. Stack Smoke builds from an empty cache, starts clean volumes, validates the 18-feature runtime artifact, runs lineage, replays the synthetic Cowrie fixture, and checks the alert, incident, and dashboard API. Security Scans runs pip-audit, npm audit, and Trivy filesystem/image scans.
+
+There are 30 opt-in live pipeline, recovery, and hardened-deployment test cases that are not run by these workflows because they require separately marked infrastructure, generated credentials, or destructive failure injection. Pytest collection currently finds 20 opt-in hardened cases, 9 live pipeline cases, and 1 live Spark-recovery case; the remaining recovery unit tests run in Fast Checks.
+
+The Security Scans run on commit 6e6a64c reported findings rather than fixing or waiving them:
+
+| Scanner/target | Critical | High | Medium | Low | Unknown |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| pip-audit | 0 | 0 | 0 | 0 | 0 |
+| npm audit | 0 | 1 | 3 | 0 | 0 |
+| Trivy filesystem | 0 | 10 | 3 | 14 | 0 |
+| Trivy container images | 34 | 1195 | 3398 | 2044 | 65 |
+
+## Design decisions and trade-offs
+
+- Kafka provides replayable stage boundaries. The local broker has one replica and ZooKeeper, so it does not provide broker high availability.
+- Spark stays because the event-time implementation and feature values were tested. Spark local[2] drained through 1000 events/s in the comparison while the master/worker mode did not drain from 200 events/s.
+- PostgreSQL is the source of truth because receipts, business effects, cooldowns, incidents, and outbox entries can share transactions.
+- Redis was removed after tests showed that PostgreSQL continued receiving events and alerts and the dashboard stayed available with Redis stopped; no dashboard read path consumed its projections.
+- Kafka UI and the telemetry consumer were removed because they duplicated broker inspection and validation paths without serving the application.
+- Grafana is optional because Prometheus and the application remain usable without its dashboard container.
+- At-least-once delivery plus stable identities and upserts accepts replay without accepting duplicate durable effects. Offsets never advance ahead of the database transaction.
+
+## Known limitations
+
+- Runtime events are synthetic by default. The Cowrie path has only been exercised with the checked-in synthetic sample, not a live honeypot.
+- CIC-IDS-2017 is a lab dataset with known timestamp/header cleaning issues documented in the evaluation output. It does not support a live-network detection claim.
+- Precision is low and all evaluated web-attack windows were missed.
+- Four YAML rules are enabled. Three are disabled: impossible travel lacks two timestamped locations, privilege escalation lacks before/after privilege data, and process-chain detection lacks process/parent/command-line fields.
+- Threat-intelligence enrichment uses hardcoded demonstration countries, domains, usernames, and hashes rather than maintained external feeds.
+- Windowed alerts deliberately take minutes because of window closure and watermarking, and can take longer under backlog.
+- The hardened deployment is experimental and excluded from CI.
+- ZooKeeper and Elasticsearch remain. Neither has been replaced or evaluated as a multi-node service.
+- No multi-node benchmark, multi-hour soak, host-loss exercise, or live-network detection study has been run.
+- Elasticsearch can lag PostgreSQL while durable outbox work retries.
+- The application is single-organization and has no blocking or response integration.
+
+## Reproduce the results
+
+### Evaluation
+
+Download the MachineLearningCSV files from the [University of New Brunswick CIC-IDS-2017 page](https://www.unb.ca/cic/datasets/ids-2017.html). The repository does not contain the dataset. Keep the filenames expected by eval/data.py under a private directory, then run:
+
+~~~bash
+export CICIDS_DIR=/absolute/private/path/TrafficLabelling
+python -m eval.run
+~~~
+
+Citation: Iman Sharafaldin, Arash Habibi Lashkari, and Ali A. Ghorbani, “Toward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization,” ICISSP, 2018.
+
+Dataset-independent evaluation tests:
+
+~~~bash
+pytest -q tests/reliability/test_detection_evaluation.py
+~~~
+
+### Benchmark
+
+The full runner removes project volumes between runs and writes only benchmarks/results/latest.md:
+
+~~~bash
+python -m benchmarks.run --full
+~~~
+
+A shorter functional run is:
+
+~~~bash
+python -m benchmarks.run --quick
+~~~
+
+The full profile is expensive: its defaults are five rates, three 300-second throughput repetitions per rate, engine comparisons, a shared equivalence run, and three watermark runs. Do not compare results from different hardware or Docker resource limits as if they were the same experiment.
+
+## Repository layout
+
+| Path | Purpose |
 | --- | --- |
-| FastAPI | REST APIs, WebSockets, OpenAPI docs |
-| Pydantic v2 | API and event schema validation |
-| SQLAlchemy | Database ORM |
-| Uvicorn | ASGI runtime |
-| prometheus-client | Metrics instrumentation |
-
-### Streaming
-
-| Technology | Purpose |
-| --- | --- |
-| Apache Kafka | Event streaming backbone |
-| Zookeeper | Kafka coordination |
-| Python Kafka clients | Producers, consumers, sink workers |
-
-### AI/ML
-
-| Technology | Purpose |
-| --- | --- |
-| scikit-learn | Isolation Forest anomaly detection |
-| pandas / NumPy | Synthetic training data and feature processing |
-| joblib | Model artifact persistence |
-| Pydantic | Prediction event contracts |
-
-### Databases
-
-| Technology | Purpose |
-| --- | --- |
-| PostgreSQL | Structured telemetry, predictions, alerts, incidents, threat intelligence |
-| Elasticsearch | Searchable telemetry, alerts, IOC matches, entity profiles |
-
-### Observability
-
-| Technology | Purpose |
-| --- | --- |
-| Prometheus | Metrics scraping |
-| Grafana | Dashboards |
-| Health checker scripts | Local platform validation |
-
-### DevOps
-
-| Technology | Purpose |
-| --- | --- |
-| Docker Compose | Local microservices orchestration |
-| PowerShell / Bash scripts | Startup, shutdown, verification |
-| pytest | Backend, ML, alert, and threat-intel test scaffolding |
-
----
-
-## Platform Screenshots
-
-### Overview Dashboard
-
-Real-time AI telemetry analytics overview with event volume, anomaly counts, risk trends, severity distribution, and live WebSocket status.
-
-![Overview Dashboard](./screenshots/dashboard-overview.png)
-
-### Real-Time Alerts Dashboard
-
-SOC alert triage view with live alert feed, severity badges, anomaly explanations, risk scores, and open incident counters.
-
-![Real-Time Alerts Dashboard](./screenshots/alerts-dashboard.png)
-
-### Incident Correlation Dashboard
-
-Incident intelligence workspace showing correlated alerts, affected entities, escalation state, and live SOC activity.
-
-![Incident Correlation Dashboard](./screenshots/incidents-dashboard.png)
-
-### Threat Intelligence Dashboard
-
-XDR-style threat intelligence view with enriched events, rule hits, threat relationship graph, score distribution, and IOC activity.
-
-![Threat Intelligence Dashboard](./screenshots/threat-intelligence.png)
-
-### MITRE ATT&CK Dashboard
-
-ATT&CK matrix coverage view for active tactics, mapped techniques, MITRE IDs, and technique frequency signals.
-
-![MITRE ATTACK Matrix](./screenshots/mitre-attack-matrix.png)
-
-### Observability Dashboard
-
-Platform health and monitoring page with service status, pipeline counters, metric summaries, and Prometheus/Grafana links.
-
-![Observability Dashboard](./screenshots/observability-dashboard.png)
-
-### Grafana Dashboard
-
-Optional local Grafana instance for operational dashboards and visual monitoring of the streaming analytics platform.
-
-![Grafana Dashboard](./screenshots/grafana-dashboard.png)
-
-### Prometheus Dashboard
-
-Prometheus query interface for inspecting scraped metrics, service targets, and time-series telemetry.
-
-![Prometheus Dashboard](./screenshots/prometheus-dashboard.png)
-
----
-
-## API
-
-The backend is powered by **FastAPI** and exposes production-style REST and WebSocket APIs.
-
-| API Surface | URL |
-| --- | --- |
-| Backend API | `http://localhost:8000` |
-| Swagger Docs | `http://localhost:8000/docs` |
-| OpenAPI JSON | `http://localhost:8000/api/v1/openapi.json` |
-| Health Check | `http://localhost:8000/api/v1/health` |
-| Prometheus Metrics | `http://localhost:8000/metrics` |
-
-Example endpoint groups:
-
-- `/api/v1/dashboard/*`
-- `/api/v1/events/*`
-- `/api/v1/predictions/*`
-- `/api/v1/alerts/*`
-- `/api/v1/incidents/*`
-- `/api/v1/threat-intel/*`
-- `/api/v1/detections/*`
-- `/api/v1/entities/*`
-- `/api/v1/mitre/*`
-- `/api/v1/monitoring/*`
-- `/api/v1/ws/dashboard`
-- `/api/v1/ws/alerts`
-- `/api/v1/ws/threat-intel`
-
----
-
-## Local Setup
-
-### Prerequisites
-
-- Docker Desktop
-- Python 3.11+
-- Node.js 20+
-- Git
-
-### 1. Clone The Repository
-
-```bash
-git clone <your-repository-url>
-cd streaming-analytics-system
-```
-
-### 2. Environment Setup
-
-The project includes safe example environment files:
-
-```text
-.env.example
-backend/.env.example
-frontend/.env.example
-ml-models/.env.example
-alert-engine/.env.example
-storage-sink/.env.example
-threat-intelligence-engine/.env.example
-```
-
-Generate private local settings before starting Docker Compose:
-
-```bash
-python3 scripts/setup_local.py
-```
-
-Docker Compose reads `.env`; keep it out of Git. The setup command preserves an
-existing `.env`, generates separate PostgreSQL and Grafana passwords, and chooses
-alternate host ports when 5432 or 3000 is occupied. Published services bind to
-127.0.0.1. These are development settings; database and Grafana credentials only
-initialize new volumes. Never delete existing volumes to change credentials.
-See [the baseline audit](docs/PHASE_0_BASELINE_AUDIT.md) for verified results and blockers.
-
-### 3. Start Laptop-Friendly Mode
-
-Windows:
-
-```powershell
-.\scripts\start_light.ps1
-```
-
-Unix/macOS/Linux:
-
-```bash
-./scripts/start_light.sh
-```
-
-### 4. Start Full Platform
-
-Windows:
-
-```powershell
-.\scripts\start_full.ps1
-```
-
-Unix/macOS/Linux:
-
-```bash
-./scripts/start_full.sh
-```
-
-Grafana is off by default. Include the provisioned demo dashboards when needed:
-
-```bash
-./scripts/start_full.sh --dashboards
-```
-
-### 5. Verify Health
-
-```bash
-python scripts/health_check.py
-python scripts/verify_phase_10.py
-```
-
-### 6. Stop Services
-
-Windows:
-
-```powershell
-.\scripts\stop_all.ps1
-```
-
-Unix/macOS/Linux:
-
-```bash
-./scripts/stop_all.sh
-```
-
----
-
-## Observability
-
-The platform includes a local monitoring stack:
-
-- Prometheus scrapes backend, ML inference, storage sink, alert engine, telemetry producer, and threat intelligence metrics.
-- Optional Grafana dashboards for system health, streaming pipeline, ML inference, SOC alerting, and threat intelligence run with the `dashboards` Compose profile.
-- FastAPI exposes monitoring APIs for dashboard integration.
-- `scripts/health_check.py` validates core service availability.
-
-Example metrics endpoints:
-
-| Component | Metrics Endpoint |
-| --- | --- |
-| Backend | `http://localhost:8000/metrics` |
-| ML Inference | `http://localhost:9101/metrics` |
-| Storage Sink | `http://localhost:9102/metrics` |
-| Alert Engine | `http://localhost:9103/metrics` |
-| Telemetry Producer | `http://localhost:9104/metrics` |
-| Threat Intelligence | `http://localhost:9106/metrics` |
-
----
-
-## Production Readiness
-
-This project is intentionally built with production-style architecture patterns:
-
-- Dockerized microservices
-- modular service boundaries
-- typed schemas and event contracts
-- Kafka-based streaming pipeline
-- Spark-based analytics layer
-- independent ML inference service
-- independent alert and threat intelligence engines
-- PostgreSQL persistence
-- Elasticsearch search indexes
-- PostgreSQL-backed alert cooldown deduplication
-- Prometheus metrics
-- Grafana dashboards
-- FastAPI OpenAPI docs
-- WebSocket live updates
-- security headers middleware
-- health validation scripts
-- light and full startup modes
-
-See [docs/production-readiness-checklist.md](docs/production-readiness-checklist.md).
-
----
-
----
-
-## License
-
-This project is licensed under the **MIT License**. See [LICENSE](LICENSE).
+| backend/ | FastAPI APIs, authentication, PostgreSQL models |
+| frontend/ | React dashboard |
+| kafka-producers/ | Synthetic producer and Cowrie adapter |
+| spark-jobs/ | Spark local streaming, windows, features, checkpoints |
+| ml-models/ | 18-field model contract, training, inference |
+| alert-engine/ | Alert rules, cooldowns, incident correlation |
+| threat-intelligence-engine/ | IOC demonstrations, YAML rules, entity timelines |
+| storage-sink/ | Batched PostgreSQL persistence and search outbox |
+| eval/ | CIC-IDS-2017 offline evaluation |
+| benchmarks/ | Reproducible single-node benchmark runner and latest result |
+| tests/ | Reliability, recovery, hardening, and browser tests |
+| docs/ | Current guides; historical phase reports are under docs/archive/ |
+| deploy/hardened/ | Experimental isolated deployment |
