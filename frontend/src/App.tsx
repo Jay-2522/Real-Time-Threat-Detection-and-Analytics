@@ -25,19 +25,19 @@ export default function App() {
       <Route element={<DashboardLayout />}>
         <Route index element={<OverviewPage />} />
         <Route path="live" element={<LiveStreamPage />} />
-        <Route path="risk" element={<RiskAnalyticsPage />} />
+        {config.features.riskAnalytics ? <Route path="risk" element={<RiskAnalyticsPage />} /> : null}
         <Route path="predictions" element={<MLPredictionsPage />} />
-        <Route path="search" element={<SearchPage />} />
+        {config.features.search ? <Route path="search" element={<SearchPage />} /> : null}
         {config.features.systemHealth ? <Route path="health" element={<SystemHealthPage />} /> : null}
         <Route path="alerts" element={<AlertsPage />} />
         <Route path="incidents" element={<IncidentsPage />} />
         {config.features.observability ? <Route path="observability" element={<ObservabilityPage />} /> : null}
-        <Route path="threat-intelligence" element={<ThreatIntelligencePage />} />
+        {config.features.threatIntelligence ? <Route path="threat-intelligence" element={<ThreatIntelligencePage />} /> : null}
         <Route path="detection-engineering" element={<DetectionEngineeringPage />} />
         {config.features.threatHunting ? <Route path="threat-hunting" element={<ThreatHuntingPage />} /> : null}
-        <Route path="mitre-attack" element={<MitreAttackPage />} />
-        <Route path="entities" element={<EntitiesPage />} />
-        <Route path="attack-timeline" element={<AttackTimelinePage />} />
+        {config.features.mitreAttack ? <Route path="mitre-attack" element={<MitreAttackPage />} /> : null}
+        {config.features.entities ? <Route path="entities" element={<EntitiesPage />} /> : null}
+        {config.features.attackTimeline ? <Route path="attack-timeline" element={<AttackTimelinePage />} /> : null}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes></SessionGate>

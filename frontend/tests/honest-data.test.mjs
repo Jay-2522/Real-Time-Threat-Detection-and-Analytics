@@ -34,3 +34,17 @@ test("the shell contains no inert search, notification, or duplicate SOC feed co
   assert.doesNotMatch(dashboardLayout, /aria-label="Notifications"/);
   assert.doesNotMatch(alertPanels, /Live SOC Feed/);
 });
+
+test("default navigation contains exactly the six demo-ready pages", () => {
+  const block = dashboardLayout.match(/const defaultNavigationItems = \[(.*?)\];/s);
+  assert.ok(block, "default navigation declaration is present");
+  const labels = [...block[1].matchAll(/label: "([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(labels, [
+    "Overview",
+    "Live Stream",
+    "ML Predictions",
+    "Alerts",
+    "Incidents",
+    "Detection Engineering",
+  ]);
+});

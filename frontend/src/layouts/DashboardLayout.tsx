@@ -3,23 +3,28 @@ import { NavLink, Outlet } from "react-router-dom";
 import { Activity, BarChart3, BrainCircuit, Crosshair, FolderKanban, Gauge, GitBranch, LayoutDashboard, Network, Radio, Search, Server, ShieldCheck, Siren, Users } from "lucide-react";
 import { config } from "../config/environment";
 
-const navigationItems = [
+const defaultNavigationItems = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
   { label: "Live Stream", href: "/live", icon: Radio },
-  { label: "Risk Analytics", href: "/risk", icon: BarChart3 },
   { label: "ML Predictions", href: "/predictions", icon: BrainCircuit },
   { label: "Alerts", href: "/alerts", icon: Siren },
   { label: "Incidents", href: "/incidents", icon: FolderKanban },
-  { label: "Threat Intel", href: "/threat-intelligence", icon: Crosshair },
-  { label: "Detections", href: "/detection-engineering", icon: ShieldCheck },
+  { label: "Detection Engineering", href: "/detection-engineering", icon: ShieldCheck },
+];
+
+const featureNavigationItems = [
+  { label: "Risk Analytics", href: "/risk", icon: BarChart3, enabled: config.features.riskAnalytics },
+  { label: "Threat Intelligence", href: "/threat-intelligence", icon: Crosshair, enabled: config.features.threatIntelligence },
   { label: "Threat Hunting", href: "/threat-hunting", icon: GitBranch, enabled: config.features.threatHunting },
-  { label: "MITRE ATT&CK", href: "/mitre-attack", icon: Network },
-  { label: "Entities", href: "/entities", icon: Users },
-  { label: "Attack Timeline", href: "/attack-timeline", icon: Activity },
-  { label: "Search", href: "/search", icon: Search },
+  { label: "MITRE ATT&CK", href: "/mitre-attack", icon: Network, enabled: config.features.mitreAttack },
+  { label: "Entities", href: "/entities", icon: Users, enabled: config.features.entities },
+  { label: "Attack Timeline", href: "/attack-timeline", icon: Activity, enabled: config.features.attackTimeline },
+  { label: "Search", href: "/search", icon: Search, enabled: config.features.search },
   { label: "System Health", href: "/health", icon: Server, enabled: config.features.systemHealth },
   { label: "Observability", href: "/observability", icon: Gauge, enabled: config.features.observability },
-].filter((item) => item.enabled !== false);
+];
+
+const navigationItems = [...defaultNavigationItems, ...featureNavigationItems.filter((item) => item.enabled)];
 
 export function DashboardLayout() {
   const { user, logout } = useSession();
