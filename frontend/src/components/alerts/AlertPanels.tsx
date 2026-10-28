@@ -1,5 +1,5 @@
 import { StatusEditor } from "./StatusEditor";
-import { Radio, Siren } from "lucide-react";
+import { Siren } from "lucide-react";
 
 import type { AlertRecord, AlertStats, IncidentRecord } from "../../types/alerts";
 import { SeverityBadge } from "../ui/SeverityBadge";
@@ -106,28 +106,6 @@ export function IncidentCards({ incidents }: { incidents: IncidentRecord[] }) {
       )) : (
         <article className="rounded-lg border border-white/10 bg-surface-900 p-8 text-center text-slate-500 shadow-panel">No incidents correlated yet.</article>
       )}
-    </section>
-  );
-}
-
-export function LiveSocFeed({ alerts, status }: { alerts: AlertRecord[]; status: string }) {
-  return (
-    <section className="rounded-lg border border-white/10 bg-surface-900 p-5 shadow-panel">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-white">Live SOC Feed</h2>
-        <span className="flex items-center gap-2 text-xs text-cyan-200"><Radio size={14} /> {status}</span>
-      </div>
-      <div className="mt-4 space-y-3">
-        {alerts.slice(0, 8).map((alert) => (
-          <div key={alert.alert_id} className="rounded-md bg-white/[0.03] p-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium text-white">{alert.title}</p>
-              <SeverityBadge severity={alert.severity} />
-            </div>
-            <p className="mt-1 text-xs text-slate-500">{alert.entity_id} · {new Date(alert.timestamp).toLocaleTimeString()}</p>
-          </div>
-        ))}
-      </div>
     </section>
   );
 }

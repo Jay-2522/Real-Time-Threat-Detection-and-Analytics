@@ -6,6 +6,8 @@ const dashboardService = await readFile(new URL("../src/services/dashboardServic
 const dataState = await readFile(new URL("../src/components/ui/DataState.tsx", import.meta.url), "utf8");
 const recordsTable = await readFile(new URL("../src/components/tables/RecordTables.tsx", import.meta.url), "utf8");
 const liveStream = await readFile(new URL("../src/pages/LiveStreamPage.tsx", import.meta.url), "utf8");
+const dashboardLayout = await readFile(new URL("../src/layouts/DashboardLayout.tsx", import.meta.url), "utf8");
+const alertPanels = await readFile(new URL("../src/components/alerts/AlertPanels.tsx", import.meta.url), "utf8");
 
 test("dashboard service cannot restore the known fabricated fallbacks", () => {
   for (const knownFake of ["fallbackTrend", "getOrFallback", "10.12.4.91", "u-1007", 'label: "00:05"', "value: 42"]) {
@@ -25,4 +27,10 @@ test("live records keep provenance and distinguish source labels from model seve
   assert.match(liveStream, /payload\.source_topic/);
   assert.match(liveStream, /severityLabel="Event label"/);
   assert.match(liveStream, /severityLabel="Model severity"/);
+});
+
+test("the shell contains no inert search, notification, or duplicate SOC feed controls", () => {
+  assert.doesNotMatch(dashboardLayout, /Search telemetry, entities, predictions/);
+  assert.doesNotMatch(dashboardLayout, /aria-label="Notifications"/);
+  assert.doesNotMatch(alertPanels, /Live SOC Feed/);
 });

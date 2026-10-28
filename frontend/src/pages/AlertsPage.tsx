@@ -1,4 +1,4 @@
-import { AlertStatsStrip, AlertsTable, CriticalAlertBanner, LiveSocFeed } from "../components/alerts/AlertPanels";
+import { AlertStatsStrip, AlertsTable, CriticalAlertBanner } from "../components/alerts/AlertPanels";
 import { ApiError } from "../components/ui/DataState";
 import { useAlertsWebSocket } from "../hooks/useAlertsWebSocket";
 import { useAsyncData } from "../hooks/useAsyncData";
@@ -21,10 +21,7 @@ export function AlertsPage() {
       </section>
       <CriticalAlertBanner alerts={live.message?.critical_alerts ?? rows} />
       {liveStats ? <AlertStatsStrip stats={liveStats} /> : null}
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <AlertsTable alerts={rows} />
-        <LiveSocFeed alerts={rows} status={live.status} />
-      </div>
+      <AlertsTable alerts={rows} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useSession } from "../auth/session";
 import { NavLink, Outlet } from "react-router-dom";
-import { Activity, BarChart3, Bell, BrainCircuit, Crosshair, FolderKanban, Gauge, GitBranch, LayoutDashboard, Network, Radio, Search, Server, ShieldCheck, Siren, Users } from "lucide-react";
+import { Activity, BarChart3, BrainCircuit, Crosshair, FolderKanban, Gauge, GitBranch, LayoutDashboard, Network, Radio, Search, Server, ShieldCheck, Siren, Users } from "lucide-react";
 import { config } from "../config/environment";
 
 const navigationItems = [
@@ -65,13 +65,6 @@ export function DashboardLayout() {
             <div className="flex items-center gap-3">
               <span>{user.username} · {user.role}</span>
               <button type="button" onClick={() => void logout()}>Sign out</button>
-              <div className="hidden min-w-72 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-slate-400 md:flex">
-                <Search size={16} />
-                <span className="text-sm">Search telemetry, entities, predictions</span>
-              </div>
-              <button className="grid h-10 w-10 place-items-center rounded-md border border-white/10 bg-white/5 text-slate-300" type="button" aria-label="Notifications">
-                <Bell size={18} />
-              </button>
             </div>
           </div>
           <nav className="mt-4 flex gap-2 overflow-x-auto lg:hidden">
