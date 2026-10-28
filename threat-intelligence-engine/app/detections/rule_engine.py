@@ -14,6 +14,12 @@ from app.utils.metrics import DETECTION_RULE_EXECUTIONS_TOTAL, DETECTION_RULE_HI
 
 logger = logging.getLogger(__name__)
 
+RFC1918_NETWORKS = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+)
+
 
 class DetectionRuleEngine:
     def __init__(self, rules_path: str) -> None:
@@ -100,9 +106,13 @@ class DetectionRuleEngine:
             port = int(payload.get("port"))
         except (TypeError, ValueError):
             return False
-        return source.is_private and destination.is_private and port in {
+        return DetectionRuleEngine._is_rfc1918(source) and DetectionRuleEngine._is_rfc1918(destination) and port in {
             int(value) for value in conditions.get("ports", [])
         }
+
+    @staticmethod
+    def _is_rfc1918(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+        return address.version == 4 and any(address in network for network in RFC1918_NETWORKS)
 
     @staticmethod
     def _timestamp(value: Any) -> datetime:

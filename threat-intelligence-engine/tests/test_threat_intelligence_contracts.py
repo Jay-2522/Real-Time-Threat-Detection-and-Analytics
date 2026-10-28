@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def load_threat_module(module: str):
     for name in list(sys.modules):
@@ -107,8 +109,8 @@ def test_each_repository_rule_has_an_honest_positive_and_negative_case():
     assert "high_risk_geo_login" in {hit.rule_id for hit in engine.evaluate(geo_positive, 60)}
     assert "high_risk_geo_login" not in {hit.rule_id for hit in engine.evaluate(geo_negative, 99)}
 
-    lateral_positive = {"event_type": "network", "source_ip": "10.0.0.1", "destination_ip": "10.0.0.2", "port": 445}
-    lateral_negative = {"event_type": "network", "source_ip": "10.0.0.1", "destination_ip": "8.8.8.8", "port": 445}
+    lateral_positive = {"event_type": "network", "source_ip": "10.0.0.1", "destination_ip": "192.168.0.2", "port": 22}
+    lateral_negative = {"event_type": "network", "source_ip": "10.0.0.1", "destination_ip": "8.8.8.8", "port": 22}
     assert "lateral_movement" in {hit.rule_id for hit in engine.evaluate(lateral_positive, 10)}
     assert "lateral_movement" not in {hit.rule_id for hit in engine.evaluate(lateral_negative, 99)}
 
@@ -124,6 +126,31 @@ def test_each_repository_rule_has_an_honest_positive_and_negative_case():
         disabled_ids = {"impossible_travel", "suspicious_privilege_escalation", "suspicious_process_chain"}
         assert not ({hit.rule_id for hit in engine.evaluate(candidate, 100)} & disabled_ids)
         assert not ({hit.rule_id for hit in engine.evaluate(benign, 100)} & disabled_ids)
+
+
+@pytest.mark.parametrize(
+    ("source_ip", "destination_ip"),
+    [
+        ("203.0.113.42", "198.51.100.10"),
+        ("127.0.0.1", "127.0.0.2"),
+        ("169.254.1.10", "169.254.1.11"),
+        ("8.8.8.8", "1.1.1.1"),
+    ],
+    ids=["documentation", "loopback", "link-local", "public"],
+)
+def test_lateral_movement_requires_rfc1918_addresses(source_ip, destination_ip):
+    module = load_threat_module("app.detections.rule_engine")
+    rules_path = Path(__file__).resolve().parents[2] / "detections" / "rules"
+    engine = module.DetectionRuleEngine(str(rules_path))
+
+    payload = {
+        "event_type": "network",
+        "source_ip": source_ip,
+        "destination_ip": destination_ip,
+        "port": 22,
+    }
+
+    assert "lateral_movement" not in {hit.rule_id for hit in engine.evaluate(payload, 99)}
 
 
 def test_threat_scoring_escalates_with_iocs_and_rules():
