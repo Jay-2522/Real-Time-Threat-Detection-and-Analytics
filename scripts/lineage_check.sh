@@ -144,10 +144,12 @@ sleep 5
 
 EVENT_JSON=$(EVENT_ID="$EVENT_ID" ENTITY_ID="$ENTITY_ID" python3 - <<'PY'
 import json, os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 print(json.dumps({
     "event_id": os.environ["EVENT_ID"],
-    "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    # Stay ahead of time-shifted demo fixtures so Spark does not discard this
+    # probe as older than the active event-time watermark.
+    "timestamp": (datetime.now(UTC) + timedelta(minutes=10)).isoformat().replace("+00:00", "Z"),
     "risk_score": 99.0,
     "event_type": "login",
     "user_id": os.environ["EVENT_ID"],
@@ -174,7 +176,7 @@ import json, os
 from datetime import UTC, datetime, timedelta
 print(json.dumps({
     "event_id": os.environ["MARKER_ID"],
-    "timestamp": (datetime.now(UTC) + timedelta(minutes=10)).isoformat().replace("+00:00", "Z"),
+    "timestamp": (datetime.now(UTC) + timedelta(minutes=20)).isoformat().replace("+00:00", "Z"),
     "risk_score": 0.0,
     "event_type": "login",
     "user_id": os.environ["MARKER_ID"],
