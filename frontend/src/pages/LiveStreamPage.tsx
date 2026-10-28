@@ -17,9 +17,9 @@ export function LiveStreamPage() {
   return (
     <div className="space-y-6">
       <ApiError errors={[events.error, predictions.error]} />
-      <PageHeader title="Live Stream" detail="Auto-refreshing telemetry and ML predictions from the local streaming pipeline." status={live.status} />
-      <RecordsTable title="Real-Time Event Feed" records={events.data ?? []} severityLabel="Event label" />
-      <RecordsTable title="Latest ML Predictions" records={livePredictions.length ? livePredictions : predictions.data ?? []} severityLabel="Model severity" />
+      <PageHeader title="Live Stream" detail="Auto-refreshing telemetry and anomaly scores from the local streaming pipeline." status={live.status} />
+      <RecordsTable title="Auto-refreshing event feed" records={events.data ?? []} severityLabel="Event label" />
+      <RecordsTable title="Auto-refreshing anomaly scores" records={livePredictions.length ? livePredictions : predictions.data ?? []} severityLabel="Model severity" />
     </div>
   );
 }

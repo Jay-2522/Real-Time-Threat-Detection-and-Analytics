@@ -49,7 +49,7 @@ export function ObservabilityPage() {
       {overview.data ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Healthy Services" value={`${overview.data?.services_healthy ?? 0}/${overview.data?.services_total ?? 0}`} detail="Prometheus targets and local dependency checks." icon={Server} tone="emerald" />
         <MetricCard label="Pipeline Events" value={overview.data?.total_events ?? 0} detail="Persisted telemetry event records." icon={RadioTower} tone="cyan" />
-        <MetricCard label="ML Predictions" value={overview.data?.total_predictions ?? 0} detail="Stored anomaly prediction records." icon={Activity} tone="amber" />
+        <MetricCard label="Anomaly scores" value={overview.data?.total_predictions ?? 0} detail="Stored anomaly-score records." icon={Activity} tone="amber" />
         <MetricCard label="Open Incidents" value={overview.data?.open_incidents ?? 0} detail="SOC incidents still open or investigating." icon={AlertTriangle} tone={(overview.data?.open_incidents ?? 0) > 0 ? "red" : "emerald"} />
       </section> : <EmptyState />}
 

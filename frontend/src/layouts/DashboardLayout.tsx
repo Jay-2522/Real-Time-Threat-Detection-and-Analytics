@@ -36,8 +36,7 @@ export function DashboardLayout() {
             <Activity size={22} />
           </div>
           <div>
-            <p className="text-sm font-semibold uppercase text-cyan-200">Streaming Analytics</p>
-            <p className="text-xs text-slate-400">AI Operations Console</p>
+            <p className="text-sm font-semibold text-cyan-200">Streaming Security Analytics (local demo)</p>
           </div>
         </div>
 
@@ -64,8 +63,7 @@ export function DashboardLayout() {
         <header className="sticky top-0 z-20 border-b border-white/10 bg-surface-950/88 px-4 py-4 backdrop-blur md:px-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-medium uppercase text-slate-500">Enterprise Streaming Analytics Platform</p>
-              <h1 className="mt-1 text-xl font-semibold text-white">Real-Time AI Analytics Interface</h1>
+              <h1 className="text-xl font-semibold text-white">Streaming Security Analytics (local demo)</h1>
             </div>
             <div className="flex items-center gap-3">
               <span>{user.username} · {user.role}</span>

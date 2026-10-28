@@ -13,7 +13,10 @@ docker compose exec backend python -m app.auth.provision
 
 The provisioning command prompts privately for a username and password. There are no
 committed application credentials. Open `http://localhost:5173` and sign in with the
-local account you just created.
+local account you just created. The UI is labeled **Streaming Security Analytics
+(local demo)**. By default it shows Overview, Live Stream, ML Predictions, Alerts,
+Incidents, and Detection Engineering; the other implemented pages are default-off
+feature flags.
 
 Grafana is optional:
 

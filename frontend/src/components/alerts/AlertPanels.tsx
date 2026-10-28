@@ -46,7 +46,7 @@ export function AlertsTable({ alerts }: { alerts: AlertRecord[] }) {
   return (
     <section className="overflow-hidden rounded-lg border border-white/10 bg-surface-900 shadow-panel">
       <div className="border-b border-white/10 px-5 py-4">
-        <h2 className="text-sm font-semibold text-white">Live Alerts</h2>
+        <h2 className="text-sm font-semibold text-white">Auto-refreshing alerts</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[960px] text-left text-sm">

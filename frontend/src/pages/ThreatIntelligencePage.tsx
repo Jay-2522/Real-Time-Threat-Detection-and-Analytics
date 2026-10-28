@@ -77,7 +77,7 @@ export function ThreatIntelligencePage() {
           </div>
         </article>
         <article className="rounded-lg border border-white/10 bg-surface-900 p-5 shadow-panel">
-          <h2 className="font-semibold text-white">Live IOC Activity</h2>
+          <h2 className="font-semibold text-white">Auto-refreshing IOC activity</h2>
           <div className="mt-4 overflow-hidden rounded-md border border-white/10">
             {(iocs.data ?? []).map((ioc) => (
               <div key={`${ioc.id}-${ioc.ioc_value}`} className="grid grid-cols-[1fr_auto] gap-3 border-b border-white/10 px-4 py-3 last:border-b-0">

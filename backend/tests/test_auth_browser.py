@@ -43,7 +43,7 @@ def test_browser_workflow_viewer_denial_and_expiration(auth):
             context = browser.new_context()
             page = context.new_page()
             page.goto('http://localhost:5174/incidents')
-            expect(page.get_by_role('heading', name='Sign in to Streaming Analytics')).to_be_visible()
+            expect(page.get_by_role('heading', name='Sign in to Streaming Security Analytics (local demo)')).to_be_visible()
             assert page.request.get(f'http://localhost:{port}/api/v1/alerts/recent').status == 401
             def sign_in(role):
                 page.get_by_label('Username', exact=True).fill(role)
@@ -52,7 +52,7 @@ def test_browser_workflow_viewer_denial_and_expiration(auth):
                 expect(page.get_by_role('button', name='Sign out')).to_be_visible()
             sign_in('analyst')
             page.get_by_role('link', name='Overview', exact=True).first.click()
-            expect(page.get_by_role('heading', name='Real-Time AI Analytics Interface')).to_be_visible()
+            expect(page.get_by_role('heading', name='Streaming Security Analytics (local demo)').first).to_be_visible()
             page.get_by_role('link', name='Alerts', exact=True).first.click()
             expect(page.get_by_text('Isolated alert', exact=True).first).to_be_visible()
             page.get_by_role('link', name='Incidents', exact=True).first.click()

@@ -21,12 +21,12 @@ export function DetectionEngineeringPage() {
       <section className="rounded-lg border border-white/10 bg-surface-900 p-6 shadow-panel">
         <p className="text-sm font-medium text-cyan-200">Sigma-like Detection Rules</p>
         <h1 className="mt-2 text-2xl font-semibold text-white">Detection Engineering</h1>
-        <p className="mt-2 text-sm text-slate-400">Local YAML rule management, hit analytics, pipeline health, and rule execution scoring.</p>
+        <p className="mt-2 text-sm text-slate-400">Loaded local YAML rules, rule-hit analytics, monitoring reachability, and execution scoring.</p>
       </section>
       <section className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="Loaded Rules" value={loadedRules.data?.length ?? "..."} detail="Rule files reported loaded by the running threat engine." icon={ShieldCheck} />
-        <MetricCard label="Total Rule Hits" value={stats.data?.total_rule_hits ?? "..."} detail="Persisted detection rule hits." icon={Activity} tone="amber" />
-        <MetricCard label="Pipeline Health" value={pipelineHealth} detail={threatEngine?.detail ?? "Waiting for the Prometheus service-health signal."} icon={FlaskConical} tone={pipelineHealth === "healthy" ? "emerald" : "amber"} />
+        <MetricCard label="Loaded rules" value={loadedRules.data?.length ?? "..."} detail="Rule files reported loaded by the running threat engine." icon={ShieldCheck} />
+        <MetricCard label="Rule hits" value={stats.data?.total_rule_hits ?? "..."} detail="Persisted detection rule hits." icon={Activity} tone="amber" />
+        <MetricCard label="Threat-engine monitoring target reachable" value={pipelineHealth} detail={threatEngine?.detail ?? "Waiting for the Prometheus service-health signal."} icon={FlaskConical} tone={pipelineHealth === "healthy" ? "emerald" : "amber"} />
       </section>
       <section className="grid gap-4 xl:grid-cols-[1fr_.9fr]">
         <article className="rounded-lg border border-white/10 bg-surface-900 p-5 shadow-panel">
@@ -44,7 +44,7 @@ export function DetectionEngineeringPage() {
           </div>
         </article>
         <article className="rounded-lg border border-white/10 bg-surface-900 p-5 shadow-panel">
-          <h2 className="flex items-center gap-2 font-semibold text-white"><SlidersHorizontal size={18} /> Rule Management</h2>
+          <h2 className="flex items-center gap-2 font-semibold text-white"><SlidersHorizontal size={18} /> Loaded rules</h2>
           <div className="mt-4 space-y-3">
             {(loadedRules.data ?? []).map((rule) => {
               const hits = rules.data?.find((item) => item.rule_id === rule.rule_id);

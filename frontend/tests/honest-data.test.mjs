@@ -8,6 +8,8 @@ const recordsTable = await readFile(new URL("../src/components/tables/RecordTabl
 const liveStream = await readFile(new URL("../src/pages/LiveStreamPage.tsx", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../src/layouts/DashboardLayout.tsx", import.meta.url), "utf8");
 const alertPanels = await readFile(new URL("../src/components/alerts/AlertPanels.tsx", import.meta.url), "utf8");
+const overviewPage = await readFile(new URL("../src/pages/OverviewPage.tsx", import.meta.url), "utf8");
+const detectionPage = await readFile(new URL("../src/pages/DetectionEngineeringPage.tsx", import.meta.url), "utf8");
 
 test("dashboard service cannot restore the known fabricated fallbacks", () => {
   for (const knownFake of ["fallbackTrend", "getOrFallback", "10.12.4.91", "u-1007", 'label: "00:05"', "value: 42"]) {
@@ -47,4 +49,15 @@ test("default navigation contains exactly the six demo-ready pages", () => {
     "Incidents",
     "Detection Engineering",
   ]);
+});
+
+test("visible dashboard labels describe the local demo and persisted data honestly", () => {
+  assert.match(dashboardLayout, /Streaming Security Analytics \(local demo\)/);
+  assert.match(overviewPage, /Persisted pipeline records/);
+  assert.match(overviewPage, /Counts raw and derived records\./);
+  assert.match(overviewPage, /Anomaly scores/);
+  assert.match(overviewPage, /High anomaly score/);
+  assert.doesNotMatch(overviewPage, /label="System"/);
+  assert.match(detectionPage, /Loaded rules/);
+  assert.match(detectionPage, /Threat-engine monitoring target reachable/);
 });
