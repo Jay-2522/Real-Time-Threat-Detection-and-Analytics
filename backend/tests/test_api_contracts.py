@@ -57,3 +57,15 @@ def test_dashboard_alert_monitoring_and_threat_api_surfaces(tmp_path):
         assert client.get("/metrics").status_code == 401
         token = Path(os.environ["METRICS_TOKEN_FILE"]).read_text()
         assert client.get("/metrics", headers={"Authorization":f"Bearer {token}"}).status_code == 200
+
+
+def test_dashboard_live_records_keep_the_persisted_source_topic(tmp_path):
+    load_backend_app(tmp_path)
+    from app.api.v1.endpoints.dashboard import _live_record
+
+    record = type("Record", (), {"raw_payload": {"event_type": "feature_window"}, "source_topic": "ml.anomaly.predictions"})()
+
+    assert _live_record(record) == {
+        "event_type": "feature_window",
+        "source_topic": "ml.anomaly.predictions",
+    }

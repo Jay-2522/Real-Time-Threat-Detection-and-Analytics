@@ -9,14 +9,17 @@ export function LiveStreamPage() {
   const events = useAsyncData(() => dashboardService.recentEvents(50), [], 5_000);
   const predictions = useAsyncData(() => dashboardService.recentPredictions(25), [], 5_000);
   const live = useDashboardWebSocket();
-  const livePredictions = (live.message?.latest_predictions ?? []).map((payload) => ({ raw_payload: payload })) as AnalyticsRecord[];
+  const livePredictions = (live.message?.latest_predictions ?? []).map((payload) => ({
+    source_topic: typeof payload.source_topic === "string" ? payload.source_topic : undefined,
+    raw_payload: payload,
+  })) as AnalyticsRecord[];
 
   return (
     <div className="space-y-6">
       <ApiError errors={[events.error, predictions.error]} />
-      <PageHeader title="Live Stream" detail="Auto-refreshing telemetry and ML predictions from the local streaming pipeline." status={live.status} />
-      <RecordsTable title="Real-Time Event Feed" records={events.data ?? []} />
-      <RecordsTable title="Latest ML Predictions" records={livePredictions.length ? livePredictions : predictions.data ?? []} />
+      <PageHeader title="Live Stream" detail="Auto-refreshing telemetry and anomaly scores from the local streaming pipeline." status={live.status} />
+      <RecordsTable title="Auto-refreshing event feed" records={events.data ?? []} severityLabel="Event label" />
+      <RecordsTable title="Auto-refreshing anomaly scores" records={livePredictions.length ? livePredictions : predictions.data ?? []} severityLabel="Model severity" />
     </div>
   );
 }

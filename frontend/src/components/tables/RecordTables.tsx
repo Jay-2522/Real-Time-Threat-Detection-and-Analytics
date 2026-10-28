@@ -4,7 +4,10 @@ import { useState } from "react";
 import type { AnalyticsRecord, EntityRiskPoint } from "../../types/dashboard";
 import { SeverityBadge } from "../ui/SeverityBadge";
 
-export function RecordsTable({ title, records }: { title: string; records: AnalyticsRecord[] }) {
+export function RecordsTable({ title, records, severityLabel = "Event label" }: { title: string; records: AnalyticsRecord[]; severityLabel?: "Event label" | "Model severity" }) {
+  const severityHelp = severityLabel === "Model severity"
+    ? "Severity derived from the model anomaly score."
+    : "Source-provided event label; it is independent of the numeric risk value.";
   return (
     <section className="overflow-hidden rounded-lg border border-white/10 bg-surface-900 shadow-panel">
       <div className="border-b border-white/10 px-5 py-4">
@@ -14,7 +17,7 @@ export function RecordsTable({ title, records }: { title: string; records: Analy
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="bg-white/[0.03] text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-5 py-3">Severity</th>
+              <th className="px-5 py-3" title={severityHelp}>{severityLabel}</th>
               <th className="px-5 py-3">Entity</th>
               <th className="px-5 py-3">Type</th>
               <th className="px-5 py-3">Risk</th>
@@ -34,14 +37,16 @@ export function RecordsTable({ title, records }: { title: string; records: Analy
 function RecordRow({ record }: { record: AnalyticsRecord }) {
   const [open, setOpen] = useState(false);
   const risk = record.ml_risk_score ?? record.risk_score ?? Number(record.raw_payload?.ml_risk_score ?? record.raw_payload?.risk_score ?? 0);
+  const severity = record.severity ?? record.raw_payload?.severity ?? record.raw_payload?.risk_level;
+  const sourceTopic = record.source_topic ?? record.raw_payload?.source_topic;
   return (
     <>
       <tr className="text-slate-300">
-        <td className="px-5 py-3"><SeverityBadge severity={record.severity ?? String(record.raw_payload?.severity ?? record.raw_payload?.risk_level ?? "low")} /></td>
+        <td className="px-5 py-3"><SeverityBadge severity={typeof severity === "string" ? severity : "unlabeled"} /></td>
         <td className="px-5 py-3 font-medium text-white">{record.entity_id ?? String(record.raw_payload?.entity_id ?? record.raw_payload?.source_ip ?? "unknown")}</td>
         <td className="px-5 py-3">{record.event_type ?? String(record.raw_payload?.event_type ?? "event")}</td>
         <td className="px-5 py-3">{risk ? risk.toFixed(1) : "0.0"}</td>
-        <td className="px-5 py-3 text-slate-500">{record.source_topic ?? "stream"}</td>
+        <td className="px-5 py-3 text-slate-500">{typeof sourceTopic === "string" ? sourceTopic : "unknown"}</td>
         <td className="px-5 py-3 text-slate-500">{formatTime(record.timestamp ?? String(record.raw_payload?.timestamp ?? ""))}</td>
         <td className="px-5 py-3">
           <button className="grid h-8 w-8 place-items-center rounded-md bg-white/5 text-slate-300" onClick={() => setOpen((value) => !value)} type="button">

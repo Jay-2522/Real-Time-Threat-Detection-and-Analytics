@@ -74,14 +74,22 @@ class AlertQueryService:
         return {
             "alert_id": alert.alert_id,
             "timestamp": alert.timestamp.isoformat(),
+            "created_at": alert.created_at.isoformat(),
             "severity": alert.severity,
             "title": alert.title,
+            "description": alert.description,
+            "source_event_id": alert.source_event_id,
             "entity_id": alert.entity_id,
+            "event_type": alert.event_type,
+            "source_topic": alert.source_topic,
+            "anomaly_score": alert.anomaly_score,
             "status": alert.status,
             "ml_risk_score": alert.ml_risk_score,
+            "correlation_id": alert.correlation_id,
             "explanation": alert.explanation,
             "recommended_action": alert.recommended_action,
             "incident_id": alert.incident_id,
+            "tags": alert.tags,
         }
 
     @staticmethod

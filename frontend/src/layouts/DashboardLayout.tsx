@@ -1,25 +1,30 @@
 import { useSession } from "../auth/session";
 import { NavLink, Outlet } from "react-router-dom";
-import { Activity, BarChart3, Bell, BrainCircuit, Crosshair, FolderKanban, Gauge, GitBranch, LayoutDashboard, Network, Radio, Search, Server, ShieldCheck, Siren, Users } from "lucide-react";
+import { Activity, BarChart3, BrainCircuit, Crosshair, FolderKanban, Gauge, GitBranch, LayoutDashboard, Network, Radio, Search, Server, ShieldCheck, Siren, Users } from "lucide-react";
 import { config } from "../config/environment";
 
-const navigationItems = [
+const defaultNavigationItems = [
   { label: "Overview", href: "/", icon: LayoutDashboard },
   { label: "Live Stream", href: "/live", icon: Radio },
-  { label: "Risk Analytics", href: "/risk", icon: BarChart3 },
   { label: "ML Predictions", href: "/predictions", icon: BrainCircuit },
   { label: "Alerts", href: "/alerts", icon: Siren },
   { label: "Incidents", href: "/incidents", icon: FolderKanban },
-  { label: "Threat Intel", href: "/threat-intelligence", icon: Crosshair },
-  { label: "Detections", href: "/detection-engineering", icon: ShieldCheck },
+  { label: "Detection Engineering", href: "/detection-engineering", icon: ShieldCheck },
+];
+
+const featureNavigationItems = [
+  { label: "Risk Analytics", href: "/risk", icon: BarChart3, enabled: config.features.riskAnalytics },
+  { label: "Threat Intelligence", href: "/threat-intelligence", icon: Crosshair, enabled: config.features.threatIntelligence },
   { label: "Threat Hunting", href: "/threat-hunting", icon: GitBranch, enabled: config.features.threatHunting },
-  { label: "MITRE ATT&CK", href: "/mitre-attack", icon: Network },
-  { label: "Entities", href: "/entities", icon: Users },
-  { label: "Attack Timeline", href: "/attack-timeline", icon: Activity },
-  { label: "Search", href: "/search", icon: Search },
+  { label: "MITRE ATT&CK", href: "/mitre-attack", icon: Network, enabled: config.features.mitreAttack },
+  { label: "Entities", href: "/entities", icon: Users, enabled: config.features.entities },
+  { label: "Attack Timeline", href: "/attack-timeline", icon: Activity, enabled: config.features.attackTimeline },
+  { label: "Search", href: "/search", icon: Search, enabled: config.features.search },
   { label: "System Health", href: "/health", icon: Server, enabled: config.features.systemHealth },
   { label: "Observability", href: "/observability", icon: Gauge, enabled: config.features.observability },
-].filter((item) => item.enabled !== false);
+];
+
+const navigationItems = [...defaultNavigationItems, ...featureNavigationItems.filter((item) => item.enabled)];
 
 export function DashboardLayout() {
   const { user, logout } = useSession();
@@ -31,8 +36,7 @@ export function DashboardLayout() {
             <Activity size={22} />
           </div>
           <div>
-            <p className="text-sm font-semibold uppercase text-cyan-200">Streaming Analytics</p>
-            <p className="text-xs text-slate-400">AI Operations Console</p>
+            <p className="text-sm font-semibold text-cyan-200">Streaming Security Analytics (local demo)</p>
           </div>
         </div>
 
@@ -59,19 +63,11 @@ export function DashboardLayout() {
         <header className="sticky top-0 z-20 border-b border-white/10 bg-surface-950/88 px-4 py-4 backdrop-blur md:px-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-medium uppercase text-slate-500">Enterprise Streaming Analytics Platform</p>
-              <h1 className="mt-1 text-xl font-semibold text-white">Real-Time AI Analytics Interface</h1>
+              <h1 className="text-xl font-semibold text-white">Streaming Security Analytics (local demo)</h1>
             </div>
             <div className="flex items-center gap-3">
               <span>{user.username} · {user.role}</span>
               <button type="button" onClick={() => void logout()}>Sign out</button>
-              <div className="hidden min-w-72 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-slate-400 md:flex">
-                <Search size={16} />
-                <span className="text-sm">Search telemetry, entities, predictions</span>
-              </div>
-              <button className="grid h-10 w-10 place-items-center rounded-md border border-white/10 bg-white/5 text-slate-300" type="button" aria-label="Notifications">
-                <Bell size={18} />
-              </button>
             </div>
           </div>
           <nav className="mt-4 flex gap-2 overflow-x-auto lg:hidden">

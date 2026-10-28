@@ -10,22 +10,31 @@ query() {
 }
 
 while (( $(date +%s) < deadline )); do
-  alert_count=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb;")
+  brute_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb;")
+  alert_count=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND raw_payload->'rule_hits' IS NOT NULL;")
+  rule_count=$(query "SELECT count(DISTINCT hit->>'rule_id') FROM alerts CROSS JOIN LATERAL jsonb_array_elements(COALESCE((raw_payload->'rule_hits')::jsonb, '[]'::jsonb)) AS hit WHERE entity_id = '${SOURCE_IP}';")
   incident_count=$(query "SELECT count(*) FROM incidents WHERE raw_payload->>'entity_id' = '${SOURCE_IP}';")
-  if (( alert_count >= 1 && incident_count == 1 )); then
+  if (( brute_alerts >= 1 && alert_count >= 2 && rule_count >= 2 && incident_count == 1 )); then
     break
   fi
   sleep 2
 done
 
-if (( alert_count < 1 || incident_count != 1 )); then
-  echo "Expected a brute-force alert and exactly one incident for ${SOURCE_IP}; alerts=${alert_count}, incidents=${incident_count}." >&2
+if (( brute_alerts < 1 || alert_count < 2 || rule_count < 2 || incident_count != 1 )); then
+  echo "Expected brute force plus a second rule in one incident for ${SOURCE_IP}; brute_alerts=${brute_alerts}, alerts=${alert_count}, distinct_rules=${rule_count}, incidents=${incident_count}." >&2
   exit 1
 fi
 
 alert_id=$(query "SELECT alert_id FROM alerts WHERE entity_id = '${SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb ORDER BY created_at DESC LIMIT 1;")
 incident_id=$(query "SELECT incident_id FROM incidents WHERE raw_payload->>'entity_id' = '${SOURCE_IP}' ORDER BY updated_at DESC LIMIT 1;")
 incident_events=$(query "SELECT event_count FROM incidents WHERE incident_id = '${incident_id}';")
+linked_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND incident_id = '${incident_id}';")
+rule_names=$(query "SELECT string_agg(DISTINCT hit->>'rule_id', ',' ORDER BY hit->>'rule_id') FROM alerts CROSS JOIN LATERAL jsonb_array_elements(COALESCE((raw_payload->'rule_hits')::jsonb, '[]'::jsonb)) AS hit WHERE entity_id = '${SOURCE_IP}';")
+
+if (( incident_events < 2 || linked_alerts < 2 )); then
+  echo "Expected incident ${incident_id} to link at least two alerts; incident_events=${incident_events}, linked_alerts=${linked_alerts}." >&2
+  exit 1
+fi
 
 username="ci-honeypot-$(date +%s)"
 password="Ci-honeypot-$(date +%s)-Aa1!"
@@ -67,8 +76,14 @@ alerts = json.load(open(sys.argv[1], encoding="utf-8"))
 incidents = json.load(open(sys.argv[2], encoding="utf-8"))
 if not any(row.get("alert_id") == os.environ["ALERT_ID"] for row in alerts):
     raise SystemExit("Brute-force alert is absent from the authenticated dashboard API")
-if not any(row.get("incident_id") == os.environ["INCIDENT_ID"] for row in incidents):
+linked = [row for row in alerts if row.get("incident_id") == os.environ["INCIDENT_ID"]]
+if len(linked) < 2:
+    raise SystemExit(f"Fewer than two linked alerts are visible in the authenticated dashboard API: {len(linked)}")
+incident = next((row for row in incidents if row.get("incident_id") == os.environ["INCIDENT_ID"]), None)
+if not incident:
     raise SystemExit("Brute-force incident is absent from the authenticated dashboard API")
+if incident.get("event_count", 0) < 2:
+    raise SystemExit("Authenticated dashboard incident does not contain multiple alerts")
 PY
 
-echo "Honeypot detection passed: source_ip=${SOURCE_IP} alerts=${alert_count} incidents=${incident_count} incident_events=${incident_events}."
+echo "Honeypot detection passed: source_ip=${SOURCE_IP} brute_alerts=${brute_alerts} alerts=${alert_count} distinct_rules=${rule_count} rules=${rule_names} incidents=${incident_count} incident_events=${incident_events} linked_alerts=${linked_alerts}."

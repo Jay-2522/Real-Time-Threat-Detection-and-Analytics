@@ -27,10 +27,11 @@ def auth(tmp_path):
             ids[role] = create_user(db, role, password, role, initial=role == 'administrator', actor=ids.get('administrator')).id
         now = datetime.now(timezone.utc)
         db.add(Incident(incident_id='test-incident', created_at=now, updated_at=now, severity='high',
-                        title='Isolated incident', description='Security regression fixture', related_alerts=[], entity_ids=['fixture'],
+                        title='Isolated incident', description='Security regression fixture', related_alerts=['test-alert'], entity_ids=['fixture'],
                         status='open', event_count=1, escalation_level=1, raw_payload={}))
         db.add(Alert(alert_id='test-alert', timestamp=now, created_at=now, severity='high', title='Isolated alert',
-                     description='Security regression fixture', source_topic='test', correlation_id='test', explanation='Fixture',
+                     description='Security regression fixture', source_topic='test', correlation_id='test-rule:fixture', explanation='Fixture',
+                     entity_id='fixture', ml_risk_score=82.0, incident_id='test-incident',
                      recommended_action='Investigate', status='open', tags=[], raw_payload={}))
     with TestClient(app, base_url='http://localhost') as client:
         yield app, client, SessionLocal, password, ids

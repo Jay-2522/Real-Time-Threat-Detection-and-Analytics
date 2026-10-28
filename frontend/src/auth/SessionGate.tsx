@@ -43,7 +43,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
   if (session) return <SessionContext.Provider value={{ user: session.user, logout }}>{message && <div role="alert" className="bg-amber-950 p-3 text-amber-100">{message}</div>}{children}</SessionContext.Provider>;
   return <main className="grid min-h-screen place-items-center bg-surface-950 text-slate-100">
     <form onSubmit={login} className="w-full max-w-sm space-y-5 rounded-lg border border-white/10 bg-surface-900 p-8">
-      <h1 className="text-xl font-semibold">Sign in to Streaming Analytics</h1>
+      <h1 className="text-xl font-semibold">Sign in to Streaming Security Analytics (local demo)</h1>
       {message && <p role="alert" className="text-sm text-amber-200">{message}</p>}
       <label className="block">Username<input name="username" autoComplete="username" required maxLength={64} className="mt-2 w-full rounded bg-white/10 p-2" /></label>
       <label className="block">Password<input name="password" type="password" autoComplete="current-password" required maxLength={128} className="mt-2 w-full rounded bg-white/10 p-2" /></label>

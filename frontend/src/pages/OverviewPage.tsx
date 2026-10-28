@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, BrainCircuit, Gauge, ShieldAlert, Signal } from "lucide-react";
+import { Activity, AlertTriangle, BrainCircuit, Gauge, ShieldAlert } from "lucide-react";
 
 import { EventVolumeChart, RiskTrendChart, SeverityDistributionChart, TopEntitiesChart } from "../components/charts/DashboardCharts";
 import { MetricCard } from "../components/dashboard/MetricCard";
@@ -24,10 +24,10 @@ export function OverviewPage() {
       <section className="rounded-lg border border-white/10 bg-surface-900 p-6 shadow-panel">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-cyan-200">AI Streaming Analytics</p>
-            <h1 className="mt-2 text-3xl font-semibold text-white">Real-time security telemetry command center</h1>
+            <p className="text-sm font-medium text-cyan-200">Streaming Security Analytics (local demo)</p>
+            <h1 className="mt-2 text-3xl font-semibold text-white">Auto-refreshing security telemetry overview</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-              Live Kafka telemetry, Spark analytics, ML anomaly scoring, searchable persistence, and system health in one local enterprise dashboard.
+              Kafka telemetry, Spark analytics, ML anomaly scoring, persisted records, and service status from the local stack.
             </p>
           </div>
           <div className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
@@ -36,13 +36,12 @@ export function OverviewPage() {
         </div>
       </section>
 
-      {data ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <MetricCard label="Total Events" value={data?.total_events ?? "..."} detail="Persisted telemetry and analytics records" icon={Activity} />
-        <MetricCard label="Predictions" value={data?.total_predictions ?? "..."} detail="ML inference records" icon={BrainCircuit} tone="emerald" />
+      {data ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label="Persisted pipeline records" value={data?.total_events ?? "..."} detail="Raw and derived records persisted by the pipeline." tooltip="Counts raw and derived records." icon={Activity} />
+        <MetricCard label="Anomaly scores" value={data?.total_predictions ?? "..."} detail="Persisted ML inference records" icon={BrainCircuit} tone="emerald" />
         <MetricCard label="Anomalies" value={data?.anomaly_count ?? "..."} detail="Isolation Forest anomaly decisions" icon={ShieldAlert} tone="amber" />
-        <MetricCard label="High Risk" value={data?.high_risk_count ?? "..."} detail="Risk score above operating threshold" icon={AlertTriangle} tone="red" />
-        <MetricCard label="Avg Risk" value={data?.average_risk_score ?? "..."} detail="Mean ML risk score" icon={Gauge} tone="cyan" />
-        <MetricCard label="System" value={data?.system_status ?? "checking"} detail="Local platform operating state" icon={Signal} tone="emerald" />
+        <MetricCard label="High anomaly score" value={data?.high_risk_count ?? "..."} detail="Model score at or above 70" icon={AlertTriangle} tone="red" />
+        <MetricCard label="Average anomaly score" value={data?.average_risk_score ?? "..."} detail="Mean persisted model score" icon={Gauge} tone="cyan" />
       </section> : <EmptyState />}
 
       <section className="grid gap-4 xl:grid-cols-2">

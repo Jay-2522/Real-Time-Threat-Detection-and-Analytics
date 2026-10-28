@@ -1,4 +1,4 @@
-import { IncidentCards, LiveSocFeed } from "../components/alerts/AlertPanels";
+import { IncidentCards } from "../components/alerts/AlertPanels";
 import { ApiError } from "../components/ui/DataState";
 import { useAlertsWebSocket } from "../hooks/useAlertsWebSocket";
 import { useAsyncData } from "../hooks/useAsyncData";
@@ -18,10 +18,7 @@ export function IncidentsPage() {
         <h1 className="mt-2 text-2xl font-semibold text-white">Correlated Incidents</h1>
         <p className="mt-2 text-sm text-slate-400">Grouped alert timelines with severity escalation, affected entities, and operational status.</p>
       </section>
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <IncidentCards incidents={incidentRows} />
-        <LiveSocFeed alerts={live.message?.recent_alerts ?? []} status={live.status} />
-      </div>
+      <IncidentCards incidents={incidentRows} />
     </div>
   );
 }

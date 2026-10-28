@@ -1,6 +1,6 @@
-# Streaming Threat Analytics Lab
+# Streaming Security Analytics (local demo)
 
-A single-node streaming security analytics lab that moves synthetic telemetry through Kafka, Spark, detection, durable storage, and an authenticated dashboard.
+A single-node local demo that moves synthetic telemetry through Kafka, Spark, detection, durable storage, and an authenticated dashboard.
 
 [![Fast Checks](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/fast-checks.yml/badge.svg?branch=dev)](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/fast-checks.yml?query=branch%3Adev)
 [![Stack Smoke](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/stack-smoke.yml/badge.svg?branch=dev)](https://github.com/Jay-2522/Real-Time-Threat-Detection-and-Analytics/actions/workflows/stack-smoke.yml?query=branch%3Adev)
@@ -38,6 +38,11 @@ Password: Local-only-demo-2026!
 ~~~
 
 Those are documentation-only local credentials, not an automatic account or a secret. Never reuse them elsewhere. Open http://localhost:5173 and sign in.
+
+The dashboard is labeled **Streaming Security Analytics (local demo)**. Its default
+navigation is Overview, Live Stream, ML Predictions, Alerts, Incidents, and
+Detection Engineering. Other implemented pages remain in the codebase behind
+default-off feature flags.
 
 Replay the repository's synthetic Cowrie sample:
 

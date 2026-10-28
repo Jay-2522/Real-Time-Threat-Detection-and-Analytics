@@ -6,6 +6,7 @@ interface MetricCardProps {
   detail: string;
   icon: LucideIcon;
   tone?: "cyan" | "emerald" | "amber" | "red";
+  tooltip?: string;
 }
 
 const tones = {
@@ -15,12 +16,12 @@ const tones = {
   red: "bg-red-400/12 text-red-200",
 };
 
-export function MetricCard({ label, value, detail, icon: Icon, tone = "cyan" }: MetricCardProps) {
+export function MetricCard({ label, value, detail, icon: Icon, tone = "cyan", tooltip }: MetricCardProps) {
   return (
     <article className="rounded-lg border border-white/10 bg-surface-900 p-5 shadow-panel">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-400">{label}</p>
+          <p className="text-sm text-slate-400" title={tooltip}>{label}</p>
           <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
         </div>
         <div className={`grid h-10 w-10 place-items-center rounded-md ${tones[tone]}`}>

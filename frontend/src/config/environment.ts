@@ -27,6 +27,12 @@ export const config = {
   eventSource,
   eventSourceLabel: eventSource === "synthetic" ? "Synthetic generator" : eventSource,
   features: {
+    riskAnalytics: enabled(import.meta.env.VITE_ENABLE_RISK_ANALYTICS),
+    threatIntelligence: enabled(import.meta.env.VITE_ENABLE_THREAT_INTELLIGENCE),
+    mitreAttack: enabled(import.meta.env.VITE_ENABLE_MITRE_ATTACK),
+    entities: enabled(import.meta.env.VITE_ENABLE_ENTITIES),
+    attackTimeline: enabled(import.meta.env.VITE_ENABLE_ATTACK_TIMELINE),
+    search: enabled(import.meta.env.VITE_ENABLE_SEARCH),
     threatHunting: enabled(import.meta.env.VITE_ENABLE_THREAT_HUNTING),
     systemHealth: enabled(import.meta.env.VITE_ENABLE_SYSTEM_HEALTH),
     observability: enabled(import.meta.env.VITE_ENABLE_OBSERVABILITY),
