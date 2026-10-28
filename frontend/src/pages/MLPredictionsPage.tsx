@@ -11,8 +11,8 @@ export function MLPredictionsPage() {
     <div className="space-y-6">
       <ApiError errors={[predictions.error, highRisks.error]} />
       <Header title="ML Predictions" detail="Isolation Forest anomaly scores, confidence, severity, explanations, and feature payloads." />
-      <RecordsTable title="Recent Predictions" records={predictions.data ?? []} />
-      <RecordsTable title="High-Risk Prediction Queue" records={highRisks.data ?? []} />
+      <RecordsTable title="Recent Predictions" records={predictions.data ?? []} severityLabel="Model severity" />
+      <RecordsTable title="High-Risk Prediction Queue" records={highRisks.data ?? []} severityLabel="Model severity" />
     </div>
   );
 }

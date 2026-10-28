@@ -78,9 +78,9 @@ async def dashboard_websocket(websocket: WebSocket) -> None:
 def _build_live_dashboard_message() -> DashboardLiveMessage:
     with SessionLocal() as db:
         overview = service.dashboard_overview(db)
-        latest_predictions = [item.raw_payload for item in service.recent_predictions(db, 10)]
-        recent_events = [item.raw_payload for item in service.recent_events(db, 10)]
-        high_risk_events = [item.raw_payload for item in service.high_risks(db, 10)]
+        latest_predictions = [_live_record(item) for item in service.recent_predictions(db, 10)]
+        recent_events = [_live_record(item) for item in service.recent_events(db, 10)]
+        high_risk_events = [_live_record(item) for item in service.high_risks(db, 10)]
         event_counters = {point.label: int(point.value) for point in service.event_type_distribution(db)}
         return DashboardLiveMessage(
             timestamp=overview.generated_at,
@@ -97,3 +97,9 @@ def _build_live_dashboard_message() -> DashboardLiveMessage:
             high_risk_events=high_risk_events,
             event_counters=event_counters,
         )
+
+
+def _live_record(item) -> dict:
+    payload = dict(item.raw_payload or {})
+    payload["source_topic"] = item.source_topic
+    return payload
