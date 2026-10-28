@@ -2,6 +2,7 @@ export interface AlertRecord {
   id?: number;
   alert_id: string;
   timestamp: string;
+  created_at?: string;
   severity: string;
   title: string;
   description?: string;

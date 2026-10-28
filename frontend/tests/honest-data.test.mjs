@@ -10,6 +10,7 @@ const dashboardLayout = await readFile(new URL("../src/layouts/DashboardLayout.t
 const alertPanels = await readFile(new URL("../src/components/alerts/AlertPanels.tsx", import.meta.url), "utf8");
 const overviewPage = await readFile(new URL("../src/pages/OverviewPage.tsx", import.meta.url), "utf8");
 const detectionPage = await readFile(new URL("../src/pages/DetectionEngineeringPage.tsx", import.meta.url), "utf8");
+const alertService = await readFile(new URL("../src/services/alertService.ts", import.meta.url), "utf8");
 
 test("dashboard service cannot restore the known fabricated fallbacks", () => {
   for (const knownFake of ["fallbackTrend", "getOrFallback", "10.12.4.91", "u-1007", 'label: "00:05"', "value: 42"]) {
@@ -60,4 +61,13 @@ test("visible dashboard labels describe the local demo and persisted data honest
   assert.doesNotMatch(overviewPage, /label="System"/);
   assert.match(detectionPage, /Loaded rules/);
   assert.match(detectionPage, /Threat-engine monitoring target reachable/);
+});
+
+test("each alert exposes the required read-only detail and linked incident status", () => {
+  for (const label of ["Rule", "Entity", "Rule severity", "Score", "Explanation", "Status", "Created", "Linked incident"]) {
+    assert.match(alertPanels, new RegExp(`label="${label}"`));
+  }
+  assert.match(alertPanels, /aria-expanded=\{open\}/);
+  assert.match(alertPanels, /alertService\.incident/);
+  assert.match(alertService, /\/incidents\/\$\{encodeURIComponent\(incidentId\)\}/);
 });

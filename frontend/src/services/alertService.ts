@@ -17,6 +17,9 @@ export const alertService = {
   async openIncidents(limit = 50) {
     return get<IncidentRecord[]>(`/incidents/open?limit=${limit}`);
   },
+  async incident(incidentId: string) {
+    return get<IncidentRecord>(`/incidents/${encodeURIComponent(incidentId)}`);
+  },
   async stats() {
     return get<AlertStats>("/alerts/stats");
   },
