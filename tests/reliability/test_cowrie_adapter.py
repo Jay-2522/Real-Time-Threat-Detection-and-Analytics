@@ -174,3 +174,25 @@ def test_time_shift_preserves_relative_gaps(cowrie_module, tmp_path):
         datetime.fromisoformat(events[1]["timestamp"]),
     ]
     assert all("password" not in row for row in published)
+
+
+def test_synthetic_fixture_separates_documentation_burst_from_rfc1918_grouping(cowrie_module):
+    fixture = ROOT / "data" / "samples" / "cowrie-synthetic.json"
+    rows = [json.loads(line) for line in fixture.read_text(encoding="utf-8").splitlines()]
+
+    documentation_burst = [
+        row
+        for row in rows
+        if row.get("eventid") == "cowrie.login.failed" and row.get("src_ip") == "203.0.113.42"
+    ]
+    grouping_rows = [row for row in rows if row.get("sensor") == "synthetic-rfc1918-grouping-fixture"]
+    mapped = [cowrie_module.map_cowrie_event(row, index) for index, row in enumerate(grouping_rows, start=1)]
+
+    assert len(documentation_burst) == 20
+    assert len(grouping_rows) == 6
+    assert all(str(row["session"]).startswith("synthetic-rfc1918-") for row in grouping_rows)
+    assert sum(event.event_type == "login" and event.login_success is False for event in mapped) == 5
+    network = next(event for event in mapped if event.event_type == "network")
+    assert network.source_ip == "10.20.0.15"
+    assert network.destination_ip == "10.20.0.20"
+    assert network.port == 22
