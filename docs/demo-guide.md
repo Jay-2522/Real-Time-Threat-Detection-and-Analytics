@@ -37,11 +37,20 @@ docker compose run --rm -T --no-deps \
 ./scripts/assert_honeypot_detection.sh
 ```
 
-The assertion waits for `brute_force_detection` and `lateral_movement` alerts for
-`203.0.113.42`, verifies that one incident links at least two alerts, and checks
-authenticated dashboard API visibility. Then open Alerts, expand either matching
-row to inspect its linked incident, and open Incidents. This demonstrates the
-synthetic fixture and pipeline; it is not evidence from a live honeypot.
+Every sample record is synthetic. The 20 failed logins from documentation address
+`203.0.113.42` produce one `brute_force_detection` alert in its own incident.
+The sample also deliberately constructs an RFC1918 grouping fixture: one remote-
+service connection from `10.20.0.15` to `10.20.0.20` on port 22 and five failed
+logins from `10.20.0.15`. Those records produce `lateral_movement` and
+`brute_force_detection` alerts in a separate two-alert incident. Any rule hit
+other than the one produced by the original 20-failed-login burst comes from
+those deliberately constructed fixture records.
+
+The assertion expects three fixture alerts and two incidents and checks their
+authenticated dashboard API visibility. Open Alerts to inspect the three rows,
+then open Incidents to see one event for `203.0.113.42` and two events for
+`10.20.0.15`. This validates rule execution and entity-based correlation logic;
+it does not demonstrate real attacker behavior or evidence from a live honeypot.
 
 ## Stop
 

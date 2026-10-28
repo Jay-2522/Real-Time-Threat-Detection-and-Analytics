@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE_IP=${HONEYPOT_TEST_SOURCE_IP:-203.0.113.42}
+DOCUMENTATION_SOURCE_IP=${HONEYPOT_DOCUMENTATION_SOURCE_IP:-203.0.113.42}
+GROUPING_SOURCE_IP=${HONEYPOT_GROUPING_SOURCE_IP:-10.20.0.15}
 TIMEOUT_SECONDS=${HONEYPOT_ASSERT_TIMEOUT_SECONDS:-180}
 deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
 
@@ -10,29 +11,36 @@ query() {
 }
 
 while (( $(date +%s) < deadline )); do
-  brute_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb;")
-  alert_count=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND raw_payload->'rule_hits' IS NOT NULL;")
-  rule_count=$(query "SELECT count(DISTINCT hit->>'rule_id') FROM alerts CROSS JOIN LATERAL jsonb_array_elements(COALESCE((raw_payload->'rule_hits')::jsonb, '[]'::jsonb)) AS hit WHERE entity_id = '${SOURCE_IP}';")
-  incident_count=$(query "SELECT count(*) FROM incidents WHERE raw_payload->>'entity_id' = '${SOURCE_IP}';")
-  if (( brute_alerts >= 1 && alert_count >= 2 && rule_count >= 2 && incident_count == 1 )); then
+  documentation_brute_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${DOCUMENTATION_SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb;")
+  grouping_brute_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${GROUPING_SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb;")
+  grouping_lateral_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${GROUPING_SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"lateral_movement\"}]'::jsonb;")
+  documentation_incidents=$(query "SELECT count(*) FROM incidents WHERE raw_payload->>'entity_id' = '${DOCUMENTATION_SOURCE_IP}';")
+  grouping_incidents=$(query "SELECT count(*) FROM incidents WHERE raw_payload->>'entity_id' = '${GROUPING_SOURCE_IP}';")
+  if (( documentation_brute_alerts == 1 && grouping_brute_alerts == 1 && grouping_lateral_alerts == 1 && documentation_incidents == 1 && grouping_incidents == 1 )); then
     break
   fi
   sleep 2
 done
 
-if (( brute_alerts < 1 || alert_count < 2 || rule_count < 2 || incident_count != 1 )); then
-  echo "Expected brute force plus a second rule in one incident for ${SOURCE_IP}; brute_alerts=${brute_alerts}, alerts=${alert_count}, distinct_rules=${rule_count}, incidents=${incident_count}." >&2
+if (( documentation_brute_alerts != 1 || grouping_brute_alerts != 1 || grouping_lateral_alerts != 1 || documentation_incidents != 1 || grouping_incidents != 1 )); then
+  echo "Expected one documentation-source brute-force alert and two RFC1918 grouping alerts across two incidents; documentation_brute_alerts=${documentation_brute_alerts}, grouping_brute_alerts=${grouping_brute_alerts}, grouping_lateral_alerts=${grouping_lateral_alerts}, documentation_incidents=${documentation_incidents}, grouping_incidents=${grouping_incidents}." >&2
   exit 1
 fi
 
-alert_id=$(query "SELECT alert_id FROM alerts WHERE entity_id = '${SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb ORDER BY created_at DESC LIMIT 1;")
-incident_id=$(query "SELECT incident_id FROM incidents WHERE raw_payload->>'entity_id' = '${SOURCE_IP}' ORDER BY updated_at DESC LIMIT 1;")
-incident_events=$(query "SELECT event_count FROM incidents WHERE incident_id = '${incident_id}';")
-linked_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${SOURCE_IP}' AND incident_id = '${incident_id}';")
-rule_names=$(query "SELECT string_agg(DISTINCT hit->>'rule_id', ',' ORDER BY hit->>'rule_id') FROM alerts CROSS JOIN LATERAL jsonb_array_elements(COALESCE((raw_payload->'rule_hits')::jsonb, '[]'::jsonb)) AS hit WHERE entity_id = '${SOURCE_IP}';")
+documentation_alert_id=$(query "SELECT alert_id FROM alerts WHERE entity_id = '${DOCUMENTATION_SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb ORDER BY created_at DESC LIMIT 1;")
+grouping_brute_alert_id=$(query "SELECT alert_id FROM alerts WHERE entity_id = '${GROUPING_SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"brute_force_detection\"}]'::jsonb ORDER BY created_at DESC LIMIT 1;")
+grouping_lateral_alert_id=$(query "SELECT alert_id FROM alerts WHERE entity_id = '${GROUPING_SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"lateral_movement\"}]'::jsonb ORDER BY created_at DESC LIMIT 1;")
+documentation_incident_id=$(query "SELECT incident_id FROM incidents WHERE raw_payload->>'entity_id' = '${DOCUMENTATION_SOURCE_IP}' ORDER BY updated_at DESC LIMIT 1;")
+grouping_incident_id=$(query "SELECT incident_id FROM incidents WHERE raw_payload->>'entity_id' = '${GROUPING_SOURCE_IP}' ORDER BY updated_at DESC LIMIT 1;")
+documentation_incident_events=$(query "SELECT event_count FROM incidents WHERE incident_id = '${documentation_incident_id}';")
+grouping_incident_events=$(query "SELECT event_count FROM incidents WHERE incident_id = '${grouping_incident_id}';")
+grouping_linked_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${GROUPING_SOURCE_IP}' AND incident_id = '${grouping_incident_id}';")
+grouping_rule_names=$(query "SELECT string_agg(DISTINCT hit->>'rule_id', ',' ORDER BY hit->>'rule_id') FROM alerts CROSS JOIN LATERAL jsonb_array_elements(COALESCE((raw_payload->'rule_hits')::jsonb, '[]'::jsonb)) AS hit WHERE entity_id = '${GROUPING_SOURCE_IP}';")
+total_fixture_alerts=$(( documentation_brute_alerts + grouping_brute_alerts + grouping_lateral_alerts ))
+total_fixture_incidents=$(( documentation_incidents + grouping_incidents ))
 
-if (( incident_events < 2 || linked_alerts < 2 )); then
-  echo "Expected incident ${incident_id} to link at least two alerts; incident_events=${incident_events}, linked_alerts=${linked_alerts}." >&2
+if (( documentation_incident_events != 1 || grouping_incident_events != 2 || grouping_linked_alerts != 2 )); then
+  echo "Expected one single-alert documentation incident and one two-alert RFC1918 incident; documentation_incident_events=${documentation_incident_events}, grouping_incident_events=${grouping_incident_events}, grouping_linked_alerts=${grouping_linked_alerts}." >&2
   exit 1
 fi
 
@@ -67,23 +75,40 @@ curl -fsS -b "$work_dir/cookies.txt" -H 'Origin: http://localhost:5173' \
 curl -fsS -b "$work_dir/cookies.txt" -H 'Origin: http://localhost:5173' \
   'http://localhost:8000/api/v1/incidents/recent?limit=200' >"$work_dir/incidents.json"
 
-ALERT_ID="$alert_id" INCIDENT_ID="$incident_id" python3 - "$work_dir/alerts.json" "$work_dir/incidents.json" <<'PY'
+DOCUMENTATION_ALERT_ID="$documentation_alert_id" \
+GROUPING_BRUTE_ALERT_ID="$grouping_brute_alert_id" \
+GROUPING_LATERAL_ALERT_ID="$grouping_lateral_alert_id" \
+DOCUMENTATION_INCIDENT_ID="$documentation_incident_id" \
+GROUPING_INCIDENT_ID="$grouping_incident_id" \
+python3 - "$work_dir/alerts.json" "$work_dir/incidents.json" <<'PY'
 import json
 import os
 import sys
 
 alerts = json.load(open(sys.argv[1], encoding="utf-8"))
 incidents = json.load(open(sys.argv[2], encoding="utf-8"))
-if not any(row.get("alert_id") == os.environ["ALERT_ID"] for row in alerts):
-    raise SystemExit("Brute-force alert is absent from the authenticated dashboard API")
-linked = [row for row in alerts if row.get("incident_id") == os.environ["INCIDENT_ID"]]
-if len(linked) < 2:
-    raise SystemExit(f"Fewer than two linked alerts are visible in the authenticated dashboard API: {len(linked)}")
-incident = next((row for row in incidents if row.get("incident_id") == os.environ["INCIDENT_ID"]), None)
-if not incident:
-    raise SystemExit("Brute-force incident is absent from the authenticated dashboard API")
-if incident.get("event_count", 0) < 2:
-    raise SystemExit("Authenticated dashboard incident does not contain multiple alerts")
+expected_alert_ids = {
+    os.environ["DOCUMENTATION_ALERT_ID"],
+    os.environ["GROUPING_BRUTE_ALERT_ID"],
+    os.environ["GROUPING_LATERAL_ALERT_ID"],
+}
+visible_alert_ids = {row.get("alert_id") for row in alerts}
+if not expected_alert_ids.issubset(visible_alert_ids):
+    raise SystemExit(f"Fixture alerts are absent from the authenticated dashboard API: {expected_alert_ids - visible_alert_ids}")
+
+documentation_incident = next(
+    (row for row in incidents if row.get("incident_id") == os.environ["DOCUMENTATION_INCIDENT_ID"]), None
+)
+grouping_incident = next(
+    (row for row in incidents if row.get("incident_id") == os.environ["GROUPING_INCIDENT_ID"]), None
+)
+if not documentation_incident or documentation_incident.get("event_count") != 1:
+    raise SystemExit("Authenticated dashboard API does not show the single-alert documentation incident")
+if not grouping_incident or grouping_incident.get("event_count") != 2:
+    raise SystemExit("Authenticated dashboard API does not show the two-alert RFC1918 grouping incident")
+linked = [row for row in alerts if row.get("incident_id") == os.environ["GROUPING_INCIDENT_ID"]]
+if len(linked) != 2:
+    raise SystemExit(f"Authenticated dashboard API shows {len(linked)} alerts for the RFC1918 incident, expected 2")
 PY
 
-echo "Honeypot detection passed: source_ip=${SOURCE_IP} brute_alerts=${brute_alerts} alerts=${alert_count} distinct_rules=${rule_count} rules=${rule_names} incidents=${incident_count} incident_events=${incident_events} linked_alerts=${linked_alerts}."
+echo "Synthetic correlation demo passed: documentation_source=${DOCUMENTATION_SOURCE_IP} documentation_alerts=${documentation_brute_alerts} documentation_rules=brute_force_detection documentation_incidents=${documentation_incidents} documentation_incident_events=${documentation_incident_events}; grouping_source=${GROUPING_SOURCE_IP} grouping_alerts=$(( grouping_brute_alerts + grouping_lateral_alerts )) grouping_rules=${grouping_rule_names} grouping_incidents=${grouping_incidents} grouping_incident_events=${grouping_incident_events} grouping_linked_alerts=${grouping_linked_alerts}; total_fixture_alerts=${total_fixture_alerts} total_fixture_incidents=${total_fixture_incidents}. Deliberately constructed fixture records validate correlation logic, not real attacker behavior."

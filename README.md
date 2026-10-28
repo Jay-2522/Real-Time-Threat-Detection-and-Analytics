@@ -54,7 +54,16 @@ $COMPOSE run --rm -T --no-deps \
 ./scripts/assert_honeypot_detection.sh
 ~~~
 
-The assertion waits for the brute-force alert, its correlated incident, and authenticated dashboard API visibility. The Cowrie adapter is implemented and tested with this synthetic sample but has not been deployed against a live honeypot.
+The sample and its sensor/session labels are explicitly synthetic. Its original
+20 failed logins from documentation address `203.0.113.42` produce one
+`brute_force_detection` alert and a single-alert incident. A deliberately
+constructed RFC1918 fixture (`10.20.0.15` to `10.20.0.20` on port 22, plus five
+failed logins from `10.20.0.15`) produces `lateral_movement` and
+`brute_force_detection` alerts that group into a separate two-alert incident.
+The assertion verifies those three alerts, two incidents, and authenticated
+dashboard API visibility. This validates rule execution and entity-based
+correlation logic; it does not demonstrate real attacker behavior or evidence
+from a live honeypot.
 
 ## What this is—and is not
 
