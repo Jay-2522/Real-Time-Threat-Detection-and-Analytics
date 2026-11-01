@@ -31,6 +31,8 @@ jobs:
         run: find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
       - name: Lint Python correctness
         run: ruff check --select E9,F63,F7,F82 .
+      - name: Lint GitHub workflows
+        run: pip install actionlint-py==1.7.12.25 && actionlint -shellcheck=
       - name: Test dataset-independent evaluation
         run: pytest -q tests/reliability/test_detection_evaluation.py
       - name: Test benchmark calculations without Docker
@@ -87,7 +89,7 @@ jobs:
   spark-contract:
     runs-on: ubuntu-latest
     env:
-      SPARK_CONTRACT_OUTPUT: ${{ runner.temp }}/spark-contract.json
+      SPARK_CONTRACT_OUTPUT: /tmp/spark-contract.json
       PYSPARK_PYTHON: python
     steps:
       - uses: actions/checkout@v4
