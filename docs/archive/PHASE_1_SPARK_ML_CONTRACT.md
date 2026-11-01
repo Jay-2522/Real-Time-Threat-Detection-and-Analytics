@@ -296,7 +296,6 @@ idempotency, with focused failure/recovery integration tests.
 - `conftest.py`, `requirements-test.txt`: test-only service isolation and reproducible root
   dependencies. No production metric registration exceptions are suppressed.
 - This document: requested contract, migration, verification and limitations.
-- `docs/PHASE_0_BASELINE_AUDIT.md`: a dated follow-up link; original findings remain unchanged.
 
 Local evidence, generated training artifacts, virtual environments, caches, test output,
 and the temporary live-verification producer are intentionally excluded from the commit.
