@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class ThreatIndexer:
     def __init__(self, host: str) -> None:
-        self._client = Elasticsearch(host, request_timeout=2, **elasticsearch_options(host))
+        self._client = Elasticsearch(host, request_timeout=2, max_retries=0, **elasticsearch_options(host))
     def index(self, enrichment: ThreatEnrichment) -> None:
         document = enrichment.model_dump(mode="json")
         indexes = ["threat-intel-events"]

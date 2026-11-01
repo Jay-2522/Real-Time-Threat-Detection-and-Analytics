@@ -22,6 +22,14 @@ idempotency. PostgreSQL is the source of truth. Elasticsearch writes are retryab
 outbox work with deterministic document IDs, so search may lag without losing the
 authoritative row.
 
+When Elasticsearch is unreachable the outbox worker stops writing to it and probes
+with a single row after 5, 10, 20, 40, then every 60 seconds, instead of retrying every
+pending row; a bad document is still retried on its own. The backlog is capped at
+`PIPELINE_OUTBOX_MAX_PENDING` (default 500000 rows per service). Past the cap the oldest
+rows are marked done with a `dropped:` note and counted in
+`pipeline_outbox_dropped_total`; the search index lacks them until it is rebuilt from
+PostgreSQL. `pipeline_outbox_target_unavailable` is 1 while a target is being probed.
+
 ## Failure behavior
 
 - Validation failures are sent to `telemetry.deadletter.events` and acknowledged only

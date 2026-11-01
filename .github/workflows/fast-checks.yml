@@ -81,6 +81,8 @@ jobs:
         run: python -c 'from sqlalchemy import create_engine; from app.db.models import Base; import os; Base.metadata.create_all(create_engine(os.environ["DATABASE_URL"]))'
       - name: Test additive authentication migration
         run: pytest -q backend/tests/test_auth_migration.py
+      - name: Test outbox circuit breaker and backlog cap
+        run: pytest -q tests/reliability/test_outbox_circuit.py
 
   frontend-and-browser:
     runs-on: ubuntu-latest
