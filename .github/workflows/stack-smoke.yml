@@ -49,14 +49,18 @@ jobs:
         run: |
           docker logs streaming-analytics-producer 2>&1 | grep -F synthetic_telemetry_producer_disabled
           docker exec streaming-analytics-ml-inference python -c 'from app.config.settings import get_settings; from app.models.artifact_store import load_artifacts; from app.features.feature_definitions import FEATURE_COLUMNS; a=load_artifacts(get_settings().artifact_dir); assert a.model.n_features_in_ == a.scaler.n_features_in_ == len(FEATURE_COLUMNS) == 18; print("runtime_model_features=18")'
-      - name: Run lineage check
-        run: scripts/lineage_check.sh
+      # Replay before the lineage check. The lineage check publishes probes 10 and 20 minutes ahead, which
+      # moves Spark's event-time watermark forward; replayed Cowrie events arriving after that are late and
+      # never form a feature window. Replaying first lets those probes close the honeypot windows so the ML
+      # model scores them, which the assertion step requires.
       - name: Replay synthetic Cowrie traffic with current timestamps
         run: |
           docker compose run --rm -T --no-deps \
             -v "$PWD/data/samples:/samples:ro" \
             telemetry-producer python -m app.main cowrie-replay \
             --file /samples/cowrie-synthetic.json --time-shift
+      - name: Run lineage check
+        run: scripts/lineage_check.sh
       - name: Assert brute-force alert, incident, and dashboard visibility
         run: scripts/assert_honeypot_detection.sh
       - name: Capture failure diagnostics
