@@ -30,6 +30,11 @@ rows are marked done with a `dropped:` note and counted in
 `pipeline_outbox_dropped_total`; the search index lacks them until it is rebuilt from
 PostgreSQL. `pipeline_outbox_target_unavailable` is 1 while a target is being probed.
 
+Each indexer creates its indices with their intended mappings before its first write,
+and retries that until it succeeds, so Elasticsearch may start after the services. An
+index that was created implicitly earlier keeps its dynamic mapping; delete it and
+rebuild it from PostgreSQL to apply the intended one.
+
 ## Failure behavior
 
 - Validation failures are sent to `telemetry.deadletter.events` and acknowledged only

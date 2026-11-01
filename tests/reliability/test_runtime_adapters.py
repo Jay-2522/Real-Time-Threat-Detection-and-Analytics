@@ -38,6 +38,7 @@ def test_threat_index_failure_propagates_and_retry_is_not_disabled():
             calls.append(kw)
             if self.failed:raise ConnectionError('search down')
     indexer._client=Client()
+    indexer._indices_ready=True  # index creation is covered by test_search_indices.py
     event=SimpleNamespace(event_id='stable-id',iocs=[],rule_hits=[],entity_id='entity',model_dump=lambda **kw:{'event_id':'stable-id'})
     with pytest.raises(ConnectionError):indexer.index(event)
     indexer._client.failed=False
@@ -66,6 +67,7 @@ def test_incident_projection_rejects_stale_snapshot_but_retries_transport_failur
             raise self.error
     indexer=module.AlertIndexer.__new__(module.AlertIndexer)
     indexer._client=Client()
+    indexer._indices_ready=True  # index creation is covered by test_search_indices.py
     indexer.index_incident({'incident_id':'incident'},7)
     assert calls[0]['version']==7 and calls[0]['version_type']=='external_gte'
     indexer._client.error=ConnectionError('search unavailable')

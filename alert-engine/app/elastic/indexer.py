@@ -1,4 +1,5 @@
 from infrastructure_runtime.security import elasticsearch_options
+from pipeline_runtime.search import ensure_indices
 import logging
 
 from elasticsearch import Elasticsearch, ConflictError
@@ -8,30 +9,34 @@ from app.schemas.alerts import AlertEvent
 
 logger = logging.getLogger(__name__)
 
+INDICES = ("alerts", "incidents")
+
 
 class AlertIndexer:
     def __init__(self, settings: AlertEngineSettings) -> None:
         self._client = Elasticsearch(settings.elasticsearch_host, request_timeout=3, max_retries=0, **elasticsearch_options(settings.elasticsearch_host))
-        self._available = False
+        self._indices_ready = False
+
+    def _ensure_indices(self) -> None:
+        if not self._indices_ready:
+            ensure_indices(self._client, {name: self._mapping() for name in INDICES})
+            self._indices_ready = True
 
     def initialize(self) -> None:
+        """Best effort at startup; the first write creates the indices if Elasticsearch was not reachable yet."""
         try:
-            self._available = bool(self._client.ping())
-            if not self._available:
-                logger.warning("elasticsearch_unavailable action=skip_alert_indexing")
-                return
-            for index_name in ("alerts", "incidents"):
-                if not self._client.indices.exists(index=index_name):
-                    self._client.indices.create(index=index_name, mappings=self._mapping())
+            self._ensure_indices()
             logger.info("alert_elasticsearch_connected")
         except Exception as exc:
-            self._available = False
-            logger.warning("alert_elasticsearch_initialization_failed reason=%s", exc)
+            logger.warning("elasticsearch_unavailable action=indices_created_on_first_write reason=%s",
+                           (str(exc).strip().splitlines() or [""])[0][:200])
 
     def index_alert(self, alert: AlertEvent) -> None:
+        self._ensure_indices()
         self._client.index(index="alerts", id=alert.alert_id, document=alert.model_dump(mode="json"))
 
     def index_incident(self, document: dict, version: int) -> None:
+        self._ensure_indices()
         try:
             self._client.index(index="incidents", id=document['incident_id'], document=document,
                                version=version, version_type="external_gte")

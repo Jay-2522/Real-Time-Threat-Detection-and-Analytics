@@ -1,4 +1,5 @@
 from infrastructure_runtime.security import elasticsearch_options
+from pipeline_runtime.search import ensure_indices
 import logging
 
 from elasticsearch import Elasticsearch
@@ -9,29 +10,32 @@ from app.utils.metrics import ELASTICSEARCH_INDEX_ERRORS_TOTAL
 
 logger = logging.getLogger(__name__)
 
+INDICES = ("telemetry-events", "analytics-events", "ml-predictions", "deadletter-events")
+
 
 class ElasticsearchIndexer:
     def __init__(self, settings: StorageSinkSettings) -> None:
         self._client = Elasticsearch(settings.elasticsearch_host, request_timeout=3, max_retries=0, **elasticsearch_options(settings.elasticsearch_host))
-        self._available = False
+        self._indices_ready = False
+
+    def _ensure_indices(self) -> None:
+        if not self._indices_ready:
+            ensure_indices(self._client, {name: self._mapping() for name in INDICES})
+            self._indices_ready = True
 
     def initialize(self) -> None:
+        """Best effort at startup; the first write creates the indices if Elasticsearch was not reachable yet."""
         try:
-            self._available = bool(self._client.ping())
-            if not self._available:
-                logger.warning("elasticsearch_unavailable action=skip_indexing")
-                return
-            for index_name in ("telemetry-events", "analytics-events", "ml-predictions", "deadletter-events"):
-                if not self._client.indices.exists(index=index_name):
-                    self._client.indices.create(index=index_name, mappings=self._mapping())
+            self._ensure_indices()
             logger.info("elasticsearch_connected indexes_initialized=true")
         except Exception as exc:
-            self._available = False
-            logger.warning("elasticsearch_initialization_failed action=postgres_only reason=%s", exc)
+            logger.warning("elasticsearch_unavailable action=indices_created_on_first_write reason=%s",
+                           (str(exc).strip().splitlines() or [""])[0][:200])
 
     def index(self, record: StorageRecord, key: str) -> None:
         # Always attempt: recovery must not depend on availability at startup.
         try:
+            self._ensure_indices()
             self._client.index(index=self._index_for_record(record), id=key, document=self._document(record))
         except Exception:
             ELASTICSEARCH_INDEX_ERRORS_TOTAL.inc()
