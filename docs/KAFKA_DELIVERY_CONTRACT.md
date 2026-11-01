@@ -28,6 +28,12 @@ authoritative row.
   after the DLQ delivery succeeds.
 - A database or publish failure stops offset advancement. On restart, Kafka replays
   the unacknowledged record or batch.
+- A lost database connection or database timeout is transient: the consumer retries
+  the same record or batch in place, with backoff up to 30 seconds, and commits only
+  after it succeeds. The retry window is 240 seconds, shorter than
+  `max.poll.interval.ms`, so the consumer keeps its partitions. Past that window, or
+  for any other error, the process exits and restarts as described above.
+  `pipeline_transient_retries_total` counts these retries.
 - Receipt payload conflicts fail closed instead of silently treating different data
   as a duplicate.
 - Shutdown allows the bounded in-flight operation to finish; forced termination

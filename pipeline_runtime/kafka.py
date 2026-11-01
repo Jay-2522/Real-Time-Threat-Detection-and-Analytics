@@ -1,4 +1,5 @@
-"""One synchronous in-flight record; fail closed and replay after a bounded restart delay."""
+"""One synchronous in-flight record. Transient infrastructure failures are retried in place; anything
+else fails closed (nothing is committed past a failed record) and the process restarts."""
 import logging
 import time
 from prometheus_client import Counter, Gauge
@@ -7,6 +8,7 @@ logger = logging.getLogger(__name__)
 FAILURES = Counter("pipeline_processing_failures_total", "Unacknowledged processing/commit failures", ["service"])
 COMMITS = Counter("pipeline_commits_total", "Confirmed input offset commits", ["service"])
 REBALANCES = Counter("pipeline_rebalances_total", "Assignment/revocation/loss callbacks", ["service", "event"])
+TRANSIENT_RETRIES = Counter("pipeline_transient_retries_total", "In-place retries after a recoverable infrastructure failure", ["service"])
 
 LAST_SUCCESS = Gauge("pipeline_last_commit_timestamp_seconds", "Last successful acknowledgement", ["service"])
 LAG = Gauge("pipeline_consumer_lag", "Observed high watermark minus committed next offset", ["service", "topic", "partition"])
@@ -14,13 +16,52 @@ LAG = Gauge("pipeline_consumer_lag", "Observed high watermark minus committed ne
 CONSUMER_OPTIONS = {"enable.auto.commit": False, "enable.auto.offset.store": False,
                     "auto.offset.reset": "earliest", "max.poll.interval.ms": 300000}
 
+# Keep retrying in place for less than max.poll.interval.ms: a longer silence drops the consumer from its group,
+# which fails closed anyway. Past this window the process exits and is restarted with unchanged offsets.
+TRANSIENT_RETRY_SECONDS = 240.0
+TRANSIENT_MAX_DELAY_SECONDS = 30.0
+
+
+def is_transient(exc: BaseException) -> bool:
+    """Infrastructure that heals on its own: lost database connections, connection-pool and network timeouts.
+
+    Data errors (bad payloads, identity conflicts) and logic errors are never transient: they must fail closed.
+    """
+    if isinstance(exc, (ConnectionError, TimeoutError)):
+        return True
+    try:
+        from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError, TimeoutError as PoolTimeoutError
+    except ImportError:  # services without a database (ML) have nothing else to classify
+        return False
+    if isinstance(exc, DBAPIError):
+        return bool(exc.connection_invalidated) or isinstance(exc, (OperationalError, InterfaceError))
+    return isinstance(exc, PoolTimeoutError)
+
 
 class DeliveryLoop:
-    def __init__(self, consumer, service):
+    def __init__(self, consumer, service, sleep=time.sleep):
         self.consumer = consumer
         self.service = service
         self.epoch = 0
         self.last_lag_check = 0.0
+        self._sleep = sleep
+
+    def _retrying(self, call, running):
+        """Run the idempotent handler again after a transient failure instead of crashing the process."""
+        started, delay = time.monotonic(), 1.0
+        while True:
+            try:
+                return call()
+            except Exception as exc:
+                if (not is_transient(exc) or not running()
+                        or time.monotonic() - started + delay > TRANSIENT_RETRY_SECONDS):
+                    raise
+                TRANSIENT_RETRIES.labels(self.service).inc()
+                reason = (str(exc).strip().splitlines() or [""])[0][:200]
+                logger.warning("transient_failure_retrying service=%s error=%s retry_in_seconds=%.0f reason=%s",
+                               self.service, type(exc).__name__, delay, reason)
+                self._sleep(delay)
+                delay = min(delay * 2, TRANSIENT_MAX_DELAY_SECONDS)
 
     def _rebalance(self, event):
         def callback(consumer, partitions):
@@ -34,10 +75,10 @@ class DeliveryLoop:
         self.consumer.subscribe(list(topics), on_assign=self._rebalance("assigned"),
                                 on_revoke=self._rebalance("revoked"), on_lost=self._rebalance("lost"))
 
-    def process(self, message, handler):
+    def process(self, message, handler, running=lambda: True):
         epoch = self.epoch
         try:
-            handler(message)
+            self._retrying(lambda: handler(message), running)
             if epoch != self.epoch:
                 raise RuntimeError("Partition ownership changed before acknowledgement")
             results = self.consumer.commit(message=message, asynchronous=False)
@@ -62,12 +103,12 @@ class DeliveryLoop:
                              self.service, message.topic(), message.partition(), message.offset())
             raise
 
-    def process_batch(self, messages, handler):
+    def process_batch(self, messages, handler, running=lambda: True):
         if not messages:
             return
         epoch = self.epoch
         try:
-            handler(messages)
+            self._retrying(lambda: handler(messages), running)
             if epoch != self.epoch:
                 raise RuntimeError("Partition ownership changed before batch acknowledgement")
             from confluent_kafka import TopicPartition
@@ -112,7 +153,7 @@ class DeliveryLoop:
                     continue
                 if message.error():
                     raise RuntimeError(str(message.error()))
-                self.process(message, handler)
+                self.process(message, handler, running)
         except Exception:
             # Stop this process; never poll/commit a later record over a failed one.
             # Compose restarts it with unchanged group offsets. Local callers rerun it.
@@ -135,7 +176,7 @@ class DeliveryLoop:
                 for message in messages:
                     if message.error():
                         raise RuntimeError(str(message.error()))
-                self.process_batch(messages, handler)
+                self.process_batch(messages, handler, running)
         except Exception:
             time.sleep(5)
             raise
