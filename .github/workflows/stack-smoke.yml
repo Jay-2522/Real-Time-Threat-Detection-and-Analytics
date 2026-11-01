@@ -63,6 +63,8 @@ jobs:
         run: scripts/lineage_check.sh
       - name: Assert brute-force alert, incident, and dashboard visibility
         run: scripts/assert_honeypot_detection.sh
+      - name: Confirm search indices carry their intended mappings
+        run: scripts/assert_search_mappings.sh
       - name: Capture failure diagnostics
         if: failure()
         run: |
