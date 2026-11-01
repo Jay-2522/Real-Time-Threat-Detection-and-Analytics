@@ -70,7 +70,8 @@ eval/results/*
 *.tmp
 *.bak
 
-# Generated contract-v2 models
-ml-models/artifacts/contract-v2/
+# Generated models (trained on first ML service start)
+ml-models/artifacts/*
+!ml-models/artifacts/.gitkeep
 
 .secrets/
