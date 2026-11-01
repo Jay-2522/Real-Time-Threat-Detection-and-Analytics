@@ -4,7 +4,7 @@ import logging
 from app.config.settings import get_settings
 from app.consumers.inference_consumer import MLInferenceConsumer
 from app.inference.predictor import AnomalyPredictor
-from app.models.artifact_store import artifacts_exist, load_artifacts
+from app.models.artifact_store import artifacts_current, artifacts_exist, load_artifacts
 from app.training.train_model import train_and_save
 from app.utils.logging import configure_logging
 from app.utils.metrics import ML_MODEL_LOADED_STATUS, start_metrics_server
@@ -20,16 +20,17 @@ def parse_args() -> argparse.Namespace:
 
 def ensure_model_artifacts() -> None:
     settings = get_settings()
-    if artifacts_exist(settings.artifact_dir):
+    if artifacts_exist(settings.artifact_dir) and artifacts_current(settings.artifact_dir):
         logger.info("model_artifacts_found artifact_dir=%s", settings.artifact_dir)
         return
+    reason = "older_traffic_profile" if artifacts_exist(settings.artifact_dir) else "missing"
     if not settings.auto_bootstrap_model:
         raise FileNotFoundError(
-            f"Missing ML model artifacts in {settings.artifact_dir}. "
+            f"ML model artifacts in {settings.artifact_dir} are {reason}. "
             "Run: docker compose run --rm ml-inference python -m app.training.train_model"
         )
 
-    logger.warning("model_artifacts_missing action=auto_bootstrap artifact_dir=%s", settings.artifact_dir)
+    logger.warning("model_artifacts_unusable reason=%s action=train artifact_dir=%s", reason, settings.artifact_dir)
     train_and_save(settings)
 
 

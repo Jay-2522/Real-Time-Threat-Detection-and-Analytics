@@ -1,9 +1,4 @@
 def explain_alert(rule_name: str, event_type: str, severity: str) -> tuple[str, str]:
-    if rule_name == "api_server_error":
-        return (
-            "The API event reports a server-side HTTP error response.",
-            "Review the endpoint logs and trace the failed request before deciding whether it is malicious.",
-        )
     if rule_name == "large_network_transfer":
         return (
             "This single network event transferred at least eight million bytes.",
@@ -16,8 +11,8 @@ def explain_alert(rule_name: str, event_type: str, severity: str) -> tuple[str, 
         )
     if rule_name == "model_positive":
         return (
-            "The model returned an explicit positive anomaly decision even though its numeric scores were below the alert thresholds.",
-            "Review the prediction features and related entity timeline to validate the model decision.",
+            "The model flagged this window as slightly outside normal behavior, below the medium alert threshold.",
+            "Treat as context only; escalate if other alerts exist for the same entity.",
         )
     return (
         "Correlated telemetry and risk signals indicate activity outside the expected baseline.",

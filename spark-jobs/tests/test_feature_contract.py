@@ -39,6 +39,10 @@ class SparkFeatureContractTests(unittest.TestCase):
         event("api", source_ip="192.0.2.4", status_code=600, response_time_ms=-1)
         event("network", source_ip="192.0.2.5", destination_ip=None, bytes_sent=None, bytes_received=20)
         event("anomaly", source_ip="192.0.2.6", risk_score=None)
+        # Honeypot sensors report neither a login country nor network byte counts: not reported, not invalid.
+        event("login", source_ip="192.0.2.8", login_success=False, country=None, risk_score=0.0)
+        event("network", source_ip="192.0.2.9", destination_ip="198.51.100.1", bytes_sent=None, bytes_received=None, risk_score=0.0)
+        event("network", source_ip="192.0.2.10", destination_ip="198.51.100.1", bytes_sent=5, bytes_received=None)
         event("network", source_ip="192.0.2.7", destination_ip="198.51.100.1",
               bytes_sent=2000000000, bytes_received=2000000000)
         frames = [normalize_event(parse_kafka_json(
@@ -91,12 +95,20 @@ class SparkFeatureContractTests(unittest.TestCase):
         for ip in ["192.0.2.3", "192.0.2.4", "192.0.2.5", "192.0.2.6"]:
             self.assertEqual(self.window(ip)["invalid_event_count"], 1)
 
+    def test_unreported_country_and_bytes_are_valid_and_half_reported_bytes_are_not(self):
+        login, network, half = self.window("192.0.2.8"), self.window("192.0.2.9"), self.window("192.0.2.10")
+        self.assertEqual((login["invalid_event_count"], network["invalid_event_count"]), (0, 0))
+        self.assertEqual(login["features"]["distinct_login_country_count"], 0)
+        self.assertEqual(login["features"]["failed_login_rate"], 1.0)
+        self.assertEqual(network["features"]["avg_network_bytes"], 0.0)  # reported as "none reported", never null
+        self.assertEqual(half["invalid_event_count"], 1)
+
     def test_network_byte_sum_does_not_overflow_int32(self):
         self.assertEqual(self.window("192.0.2.7")["features"]["avg_network_bytes"], 4000000000)
 
     def test_enriched_login_outcome_is_preserved(self):
         self.assertIn("login_success", select_enriched_columns(self.login).columns)
-        self.assertEqual(select_enriched_columns(self.login).filter(F.col("login_success") == False).count(), 2)
+        self.assertEqual(select_enriched_columns(self.login).filter(F.col("login_success") == False).count(), 3)
 
 
 if __name__ == "__main__":

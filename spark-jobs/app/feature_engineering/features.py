@@ -28,10 +28,13 @@ def build_window_features(events: DataFrame, settings: SparkStreamingSettings) -
 
     valid = (F.col("risk_score").between(0, 100)
              & (login | api | network | anomaly)
-             & (~login | (F.col("login_success").isNotNull() & present("country")))
+             # Honeypot sensors (Cowrie) report neither a login country nor network byte counts. Missing is
+             # "not reported", not "invalid"; a negative or half-reported measurement still is invalid.
+             & (~login | F.col("login_success").isNotNull())
              & (~api | (F.col("status_code").between(100, 599) & (F.col("response_time_ms") >= 0)))
-             & (~network | ((F.col("bytes_sent") >= 0) & (F.col("bytes_received") >= 0)
-                            & present("destination_ip"))))
+             & (~network | (present("destination_ip")
+                            & ((F.col("bytes_sent").isNull() & F.col("bytes_received").isNull())
+                               | ((F.col("bytes_sent") >= 0) & (F.col("bytes_received") >= 0))))))
     base = (events.filter(present("source_ip"))
         .withWatermark("event_timestamp", settings.watermark_delay)
         .groupBy(F.window("event_timestamp", "1 minute", "30 seconds"), "source_ip")
@@ -44,7 +47,8 @@ def build_window_features(events: DataFrame, settings: SparkStreamingSettings) -
             count(api & F.col("status_code").between(400, 599)).alias("api_error_count"),
             count(api & F.col("status_code").between(500, 599)).alias("api_5xx_count"),
             F.avg(F.when(api, F.col("response_time_ms"))).alias("avg_api_response_time"),
-            F.avg(F.when(network, F.col("bytes_sent").cast("double") + F.col("bytes_received").cast("double"))).alias("avg_network_bytes"),
+            F.avg(F.when(network & F.col("bytes_sent").isNotNull() & F.col("bytes_received").isNotNull(),
+                         F.col("bytes_sent").cast("double") + F.col("bytes_received").cast("double"))).alias("avg_network_bytes"),
             count(network & (F.col("risk_score") >= 70)).alias("high_risk_network_event_count"),
             F.avg("risk_score").alias("risk_score_moving_average"),
             count(F.col("risk_score") >= 70).alias("high_risk_event_count"),
@@ -62,7 +66,10 @@ def build_window_features(events: DataFrame, settings: SparkStreamingSettings) -
         .withColumn("endpoint_error_rate", ratio("api_error_count", "api_event_count"))
         .withColumn("api_5xx_rate", ratio("api_5xx_count", "api_event_count"))
         .withColumn("anomaly_rate", ratio("anomaly_event_count", "event_count"))
-        .withColumn("requests_per_minute", F.col("api_event_count").cast("double")))
+        .withColumn("requests_per_minute", F.col("api_event_count").cast("double"))
+        # Network events without byte counts contribute no measurement; 0 means "none reported".
+        .withColumn("avg_network_bytes", F.when(F.col("network_event_count") > 0,
+                                                F.coalesce(F.col("avg_network_bytes"), F.lit(0.0)))))
     feature_names = [
         "event_count", "login_event_count", "api_event_count", "network_event_count", "anomaly_event_count",
         "failed_login_rate", "failed_auth_count", "requests_per_minute", "avg_api_response_time",

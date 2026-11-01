@@ -20,7 +20,7 @@ def test_rule_engine_generates_high_risk_alert():
     assert alerts[0].severity == "critical"
 
 
-def test_rule_engine_honors_positive_model_decision_below_score_threshold():
+def test_rule_engine_downgrades_weak_positive_model_decision_to_low():
     rule_module = load_alert_module("app.rules.rule_engine")
     alerts = rule_module.AlertRulesEngine().evaluate(
         "ml.anomaly.predictions",
@@ -33,8 +33,8 @@ def test_rule_engine_honors_positive_model_decision_below_score_threshold():
         },
     )
     assert len(alerts) == 1
-    assert alerts[0].severity == "medium"
-    assert alerts[0].title == "Positive ML anomaly decision"
+    assert alerts[0].severity == "low"
+    assert alerts[0].title == "Weak ML anomaly signal"
     assert alerts[0].correlation_id.startswith("model_positive:")
 
 
@@ -52,10 +52,15 @@ def test_code_rules_have_positive_and_negative_cases():
     assert "model_positive" in {alert.correlation_id.split(":", 1)[0] for alert in model_positive}
     assert "model_positive" not in {alert.correlation_id.split(":", 1)[0] for alert in model_negative}
 
-    api_positive = engine.evaluate("analytics.enriched.events", {"event_type": "api", "entity_id": "e3", "status_code": 503})
-    api_negative = engine.evaluate("analytics.enriched.events", {"event_type": "api", "entity_id": "e3", "status_code": 404})
-    assert "api_server_error" in {alert.correlation_id.split(":", 1)[0] for alert in api_positive}
-    assert "api_server_error" not in {alert.correlation_id.split(":", 1)[0] for alert in api_negative}
+    single_server_error = engine.evaluate("analytics.enriched.events", {"event_type": "api", "entity_id": "e3", "status_code": 503})
+    assert single_server_error == []  # one 5xx is not an alert
+
+    tiers = {
+        severity: engine.evaluate("ml.anomaly.predictions", {"entity_id": "e1", "anomaly_score": score})[0].severity
+        for severity, score in {"critical": 0.9, "high": 0.66, "medium": 0.56}.items()
+    }
+    assert tiers == {"critical": "critical", "high": "high", "medium": "medium"}
+    assert engine.evaluate("ml.anomaly.predictions", {"entity_id": "e1", "anomaly_score": 0.54}) == []
 
     network_positive = engine.evaluate(
         "analytics.enriched.events",

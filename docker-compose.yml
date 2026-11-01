@@ -269,11 +269,11 @@ services:
       ML_LOG_LEVEL: INFO
       ML_ARTIFACT_DIR: /app/artifacts/contract-v2
       ML_MODEL_NAME: isolation_forest_anomaly_detector
-      ML_MODEL_VERSION: 0.2.0
+      ML_MODEL_VERSION: 0.3.0
       ML_PREDICTION_TOPIC: ml.anomaly.predictions
       ML_AUTO_BOOTSTRAP_MODEL: "true"
       ML_TRAINING_SAMPLE_SIZE: 12000
-      ML_CONTAMINATION: 0.06
+      ML_TARGET_FALSE_POSITIVE_RATE: 0.002
     ports:
       - "127.0.0.1:9101:9101"
     command: python -m app.main inference

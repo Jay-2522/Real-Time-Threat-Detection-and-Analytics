@@ -9,6 +9,8 @@ import joblib
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 
+from pipeline_runtime.traffic_model import PROFILE_VERSION
+
 from app.features.feature_definitions import FEATURE_COLUMNS, FEATURE_CONTRACT_VERSION, PREPROCESSING
 
 
@@ -25,6 +27,15 @@ def artifacts_exist(artifact_dir: Path) -> bool:
         and (artifact_dir / "feature_scaler.joblib").exists()
         and (artifact_dir / "feature_metadata.json").exists()
     )
+
+
+def artifacts_current(artifact_dir: Path) -> bool:
+    """False when the stored model was trained on an older traffic profile and must be retrained."""
+    try:
+        metadata = json.loads((artifact_dir / "feature_metadata.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return metadata.get("traffic_profile_version") == PROFILE_VERSION
 
 
 def save_artifacts(artifact_dir: Path, model: IsolationForest, scaler: StandardScaler, metadata: dict, metrics: dict) -> None:

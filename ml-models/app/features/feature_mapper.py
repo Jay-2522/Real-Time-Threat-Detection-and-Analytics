@@ -39,8 +39,8 @@ def validate_features(raw: dict) -> dict[str, float]:
                           ("high_risk_event_count", n)]:
         if result[child] > parent:
             raise ValueError(f"Count exceeds scope: {child}")
-    if ((login > 0 and result["distinct_login_country_count"] < 1)
-            or (network > 0 and result["unique_destination_ip_count"] < 1)):
+    # Login country is optional (honeypot sensors do not report it); a network event always has a destination.
+    if network > 0 and result["unique_destination_ip_count"] < 1:
         raise ValueError("Missing distinct observations")
     for name, expected in [("failed_login_rate", result["failed_auth_count"] / login if login else 0),
                            ("anomaly_rate", anomaly / n), ("requests_per_minute", api)]:

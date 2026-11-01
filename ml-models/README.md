@@ -4,8 +4,8 @@ This package contains the Phase 4 machine learning runtime for the Real-Time Str
 
 ## Responsibilities
 
-- Generate synthetic cybersecurity feature training data.
-- Train an Isolation Forest anomaly detection model.
+- Simulate benign and attack traffic with the shared traffic model and window it like Spark does.
+- Train an Isolation Forest on benign windows, calibrate its alert threshold, and evaluate it on held-out windows.
 - Persist model, scaler, metadata, and metrics artifacts.
 - Load artifacts in a long-running inference worker.
 - Consume analytics events from Kafka.
@@ -19,7 +19,6 @@ This package contains the Phase 4 machine learning runtime for the Real-Time Str
 ml-models/
   app/
     config/      Settings and topic constants
-    data/        Synthetic training data generation
     features/    Feature definitions and streaming feature mapping
     models/      Artifact persistence and loading
     training/    Offline training pipeline
@@ -47,6 +46,21 @@ Generated artifacts:
 - `artifacts/contract-v2/feature_scaler.joblib`
 - `artifacts/contract-v2/feature_metadata.json`
 - `artifacts/contract-v2/training_metrics.json`
+
+### How the model is trained and judged
+
+Training uses `pipeline_runtime/traffic_model.py`, the same model that drives the telemetry producer, so the
+model is trained on the traffic it later scores. Three independent simulations are used: one to fit the
+Isolation Forest on benign windows only, one to set the anomaly threshold so that only
+`ML_TARGET_FALSE_POSITIVE_RATE` (default 0.2%) of unseen benign windows are flagged, and one held-out run for
+evaluation. The result is written to `training_metrics.json` (`evaluation`): benign false-positive rate and the
+detection rate per attack scenario. A model trained on an older traffic profile is retrained automatically on
+the next start when `ML_AUTO_BOOTSTRAP_MODEL` is true.
+
+These figures are measured on synthetic data and are not real-world accuracy; the CIC-IDS-2017 results in the
+repository README are the independent check. The model covers volume and behaviour attacks (brute force, API
+abuse, exfiltration, part of lateral movement). Indicator-based attacks (DNS beaconing on port 53, logins from
+watchlist countries) are caught by the YAML detection rules, not the model.
 
 ## Inference
 

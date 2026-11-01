@@ -142,7 +142,7 @@ def test_actual_spark_output_maps_without_fabrication():
             for name, value in p["features"].items():
                 assert vector[name] == (0.0 if value is None else value)
             valid += 1
-    assert valid == 8 and invalid == 8
+    assert valid == 12 and invalid == 10
 
 
 def test_legacy_partial_record_is_rejected():

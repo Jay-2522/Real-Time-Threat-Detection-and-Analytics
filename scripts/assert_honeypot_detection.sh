@@ -16,14 +16,16 @@ while (( $(date +%s) < deadline )); do
   grouping_lateral_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${GROUPING_SOURCE_IP}' AND (raw_payload->'rule_hits')::jsonb @> '[{\"rule_id\":\"lateral_movement\"}]'::jsonb;")
   documentation_incidents=$(query "SELECT count(*) FROM incidents WHERE raw_payload->>'entity_id' = '${DOCUMENTATION_SOURCE_IP}';")
   grouping_incidents=$(query "SELECT count(*) FROM incidents WHERE raw_payload->>'entity_id' = '${GROUPING_SOURCE_IP}';")
-  if (( documentation_brute_alerts == 1 && grouping_brute_alerts == 1 && grouping_lateral_alerts == 1 && documentation_incidents == 1 && grouping_incidents == 1 )); then
+  documentation_scored=$(query "SELECT count(*) FROM anomaly_predictions WHERE entity_id = '${DOCUMENTATION_SOURCE_IP}';")
+  grouping_scored=$(query "SELECT count(*) FROM anomaly_predictions WHERE entity_id = '${GROUPING_SOURCE_IP}';")
+  if (( documentation_brute_alerts == 1 && grouping_brute_alerts == 1 && grouping_lateral_alerts == 1 && documentation_incidents == 1 && grouping_incidents == 1 && documentation_scored >= 1 && grouping_scored >= 1 )); then
     break
   fi
   sleep 2
 done
 
-if (( documentation_brute_alerts != 1 || grouping_brute_alerts != 1 || grouping_lateral_alerts != 1 || documentation_incidents != 1 || grouping_incidents != 1 )); then
-  echo "Expected one documentation-source brute-force alert and two RFC1918 grouping alerts across two incidents; documentation_brute_alerts=${documentation_brute_alerts}, grouping_brute_alerts=${grouping_brute_alerts}, grouping_lateral_alerts=${grouping_lateral_alerts}, documentation_incidents=${documentation_incidents}, grouping_incidents=${grouping_incidents}." >&2
+if (( documentation_brute_alerts != 1 || grouping_brute_alerts != 1 || grouping_lateral_alerts != 1 || documentation_incidents != 1 || grouping_incidents != 1 || documentation_scored < 1 || grouping_scored < 1 )); then
+  echo "Expected one documentation-source brute-force alert and two RFC1918 grouping alerts across two incidents, with both honeypot sources scored by the ML model (documentation_scored=${documentation_scored}, grouping_scored=${grouping_scored}); documentation_brute_alerts=${documentation_brute_alerts}, grouping_brute_alerts=${grouping_brute_alerts}, grouping_lateral_alerts=${grouping_lateral_alerts}, documentation_incidents=${documentation_incidents}, grouping_incidents=${grouping_incidents}." >&2
   exit 1
 fi
 
@@ -34,13 +36,21 @@ documentation_incident_id=$(query "SELECT incident_id FROM incidents WHERE raw_p
 grouping_incident_id=$(query "SELECT incident_id FROM incidents WHERE raw_payload->>'entity_id' = '${GROUPING_SOURCE_IP}' ORDER BY updated_at DESC LIMIT 1;")
 documentation_incident_events=$(query "SELECT event_count FROM incidents WHERE incident_id = '${documentation_incident_id}';")
 grouping_incident_events=$(query "SELECT event_count FROM incidents WHERE incident_id = '${grouping_incident_id}';")
-grouping_linked_alerts=$(query "SELECT count(*) FROM alerts WHERE entity_id = '${GROUPING_SOURCE_IP}' AND incident_id = '${grouping_incident_id}';")
 grouping_rule_names=$(query "SELECT string_agg(DISTINCT hit->>'rule_id', ',' ORDER BY hit->>'rule_id') FROM alerts CROSS JOIN LATERAL jsonb_array_elements(COALESCE((raw_payload->'rule_hits')::jsonb, '[]'::jsonb)) AS hit WHERE entity_id = '${GROUPING_SOURCE_IP}';")
 total_fixture_alerts=$(( documentation_brute_alerts + grouping_brute_alerts + grouping_lateral_alerts ))
 total_fixture_incidents=$(( documentation_incidents + grouping_incidents ))
 
-if (( documentation_incident_events != 1 || grouping_incident_events != 2 || grouping_linked_alerts != 2 )); then
-  echo "Expected one single-alert documentation incident and one two-alert RFC1918 incident; documentation_incident_events=${documentation_incident_events}, grouping_incident_events=${grouping_incident_events}, grouping_linked_alerts=${grouping_linked_alerts}." >&2
+rejected_windows=$(query "SELECT count(*) FROM deadletter_events WHERE raw_payload->>'reason' = 'Window contains invalid source measurements';")
+if (( rejected_windows != 0 )); then
+  echo "Honeypot feature windows were rejected as invalid measurements (rejected_windows=${rejected_windows}); Cowrie reports no login country or byte counts, which is not invalid." >&2
+  exit 1
+fi
+
+# The model may add its own alerts to either incident, so assert on the rule alerts, which are deterministic.
+documentation_rule_linked=$(query "SELECT count(*) FROM alerts WHERE alert_id = '${documentation_alert_id}' AND incident_id = '${documentation_incident_id}';")
+grouping_rule_linked=$(query "SELECT count(*) FROM alerts WHERE incident_id = '${grouping_incident_id}' AND alert_id IN ('${grouping_brute_alert_id}', '${grouping_lateral_alert_id}');")
+if (( documentation_rule_linked != 1 || documentation_incident_events < 1 || grouping_rule_linked != 2 || grouping_incident_events < 2 )); then
+  echo "Expected the documentation incident to hold its brute-force alert and the RFC1918 incident to hold both rule alerts; documentation_rule_linked=${documentation_rule_linked}, documentation_incident_events=${documentation_incident_events}, grouping_rule_linked=${grouping_rule_linked}, grouping_incident_events=${grouping_incident_events}." >&2
   exit 1
 fi
 
@@ -102,13 +112,14 @@ documentation_incident = next(
 grouping_incident = next(
     (row for row in incidents if row.get("incident_id") == os.environ["GROUPING_INCIDENT_ID"]), None
 )
-if not documentation_incident or documentation_incident.get("event_count") != 1:
-    raise SystemExit("Authenticated dashboard API does not show the single-alert documentation incident")
-if not grouping_incident or grouping_incident.get("event_count") != 2:
-    raise SystemExit("Authenticated dashboard API does not show the two-alert RFC1918 grouping incident")
-linked = [row for row in alerts if row.get("incident_id") == os.environ["GROUPING_INCIDENT_ID"]]
-if len(linked) != 2:
-    raise SystemExit(f"Authenticated dashboard API shows {len(linked)} alerts for the RFC1918 incident, expected 2")
+if not documentation_incident or documentation_incident.get("event_count", 0) < 1:
+    raise SystemExit("Authenticated dashboard API does not show the documentation incident")
+if not grouping_incident or grouping_incident.get("event_count", 0) < 2:
+    raise SystemExit("Authenticated dashboard API does not show the RFC1918 grouping incident")
+linked = {row.get("alert_id") for row in alerts if row.get("incident_id") == os.environ["GROUPING_INCIDENT_ID"]}
+rule_alerts = {os.environ["GROUPING_BRUTE_ALERT_ID"], os.environ["GROUPING_LATERAL_ALERT_ID"]}
+if not rule_alerts <= linked:
+    raise SystemExit(f"Authenticated dashboard API is missing RFC1918 rule alerts for the incident: {rule_alerts - linked}")
 PY
 
-echo "Synthetic correlation demo passed: documentation_source=${DOCUMENTATION_SOURCE_IP} documentation_alerts=${documentation_brute_alerts} documentation_rules=brute_force_detection documentation_incidents=${documentation_incidents} documentation_incident_events=${documentation_incident_events}; grouping_source=${GROUPING_SOURCE_IP} grouping_alerts=$(( grouping_brute_alerts + grouping_lateral_alerts )) grouping_rules=${grouping_rule_names} grouping_incidents=${grouping_incidents} grouping_incident_events=${grouping_incident_events} grouping_linked_alerts=${grouping_linked_alerts}; total_fixture_alerts=${total_fixture_alerts} total_fixture_incidents=${total_fixture_incidents}. Deliberately constructed fixture records validate correlation logic, not real attacker behavior."
+echo "Synthetic correlation demo passed: documentation_source=${DOCUMENTATION_SOURCE_IP} documentation_alerts=${documentation_brute_alerts} documentation_rules=brute_force_detection documentation_incidents=${documentation_incidents} documentation_incident_events=${documentation_incident_events}; grouping_source=${GROUPING_SOURCE_IP} grouping_alerts=$(( grouping_brute_alerts + grouping_lateral_alerts )) grouping_rules=${grouping_rule_names} grouping_incidents=${grouping_incidents} grouping_incident_events=${grouping_incident_events} grouping_rule_alerts_linked=${grouping_rule_linked}; honeypot_windows_scored=$(( documentation_scored + grouping_scored )); total_fixture_alerts=${total_fixture_alerts} total_fixture_incidents=${total_fixture_incidents}. Deliberately constructed fixture records validate correlation logic, not real attacker behavior."

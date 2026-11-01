@@ -4,7 +4,7 @@ Python runtime for Phase 2 synthetic telemetry production.
 
 ## Responsibilities
 
-- Generate realistic cybersecurity and platform telemetry events.
+- Generate telemetry from a stable synthetic company (users, workstations, servers) plus labelled attack scenarios.
 - Validate all outbound events with Pydantic schemas.
 - Publish events to Kafka topics with retry-safe producer configuration.
 
@@ -34,13 +34,21 @@ time and keeps every original gap, so a ten-second burst remains a ten-second
 burst. The actual Cowrie time remains in `original_timestamp`. Omit the option
 for live ingestion or when historical event times must drive the windows.
 
+## Generated traffic
+
+Traffic comes from `pipeline_runtime/traffic_model.py`, which the ML service also trains on. Benign users keep a
+fixed office IP and country, so source-IP windows hold several events. Attack scenarios interleave with it:
+brute force, API abuse, lateral movement, data exfiltration, DNS beaconing and a login from a high-risk country.
+Each scenario is built to satisfy the matching detection rule or the model's window features, and benign
+traffic never satisfies a detection rule. The data is synthetic and says nothing about real attackers.
+
 ## Environment Variables
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker list. |
 | `EVENT_RATE_PER_SECOND` | `5` | Producer event generation rate. |
-| `ANOMALY_RATE` | `0.05` | Probability of generating anomaly events. |
+| `ANOMALY_RATE` | `0.05` | Long-run fraction of events that belong to an attack scenario. |
 | `PRODUCER_LOG_LEVEL` | `INFO` | Producer logging level. |
 
 ## Topics

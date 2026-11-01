@@ -7,6 +7,11 @@ from app.rules.explanations import explain_alert
 from app.schemas.alerts import AlertEvent
 
 
+# ML alert tiers come from the calibrated model's measured scores on held-out simulated windows
+# (ml-models training_metrics.json): benign false positives stay at or below 0.56, attack windows reach about 0.70.
+CRITICAL_SCORE, HIGH_SCORE, MEDIUM_SCORE = 0.88, 0.65, 0.55
+
+
 class AlertRulesEngine:
     def evaluate(self, source_topic: str, payload: dict[str, Any]) -> list[AlertEvent]:
         event_type = str(payload.get("event_type") or payload.get("metric_type") or payload.get("feature_name") or "analytics")
@@ -18,17 +23,18 @@ class AlertRulesEngine:
 
         candidates: list[tuple[str, str, str, list[str]]] = []
         if source_topic == "ml.anomaly.predictions":
-            if anomaly_score >= 0.88 or ml_risk_score >= 90:
+            score = max(anomaly_score, ml_risk_score / 100)  # the model reports the same score on both scales
+            if score >= CRITICAL_SCORE:
                 candidates.append(("high_anomaly", "critical", "Critical anomaly detected", ["ml", "critical", event_type]))
-            elif anomaly_score >= 0.72 or ml_risk_score >= 75:
+            elif score >= HIGH_SCORE:
                 candidates.append(("high_anomaly", "high", "High-risk anomaly detected", ["ml", "high", event_type]))
-            elif anomaly_score >= 0.55 or ml_risk_score >= 60:
+            elif score >= MEDIUM_SCORE:
                 candidates.append(("high_anomaly", "medium", "Elevated anomaly signal", ["ml", "medium", event_type]))
             elif payload.get("is_anomaly") is True:
-                candidates.append(("model_positive", "medium", "Positive ML anomaly decision", ["ml", "medium", event_type]))
+                candidates.append(("model_positive", "low", "Weak ML anomaly signal", ["ml", "low", event_type]))
 
-        if source_topic == "analytics.enriched.events" and event_type == "api" and int(payload.get("status_code") or 200) >= 500:
-            candidates.append(("api_server_error", "medium", "API server error response", ["api", "server-error"]))
+        # A single HTTP 5xx is not an alert: it fires on healthy traffic. Bursts of errors reach the ML
+        # window features (api_5xx_rate) and the api_abuse pattern instead.
         if source_topic == "analytics.enriched.events" and event_type == "network" and (
             _float(payload.get("bytes_sent")) + _float(payload.get("bytes_received")) >= 8_000_000
         ):
