@@ -165,3 +165,19 @@ def test_threat_scoring_escalates_with_iocs_and_rules():
     assert score >= 70
     assert confidence > 0.5
     assert severity in {"medium", "high", "critical"}
+
+
+def test_catalog_reports_every_valid_rule_file_with_its_real_enabled_state(tmp_path):
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+    base = "name: {name}\nseverity: high\ntactic: Credential Access\ntechnique: Brute Force\nmitre_id: T1110\nconditions: {{}}\n"
+    (rules_dir / "on.yaml").write_text("id: on_rule\nenabled: true\n" + base.format(name="On"))
+    (rules_dir / "off.yaml").write_text("id: off_rule\nenabled: false\n" + base.format(name="Off"))
+    (rules_dir / "broken.yaml").write_text("id: broken_rule\nname: Missing required fields\n")
+    engine = load_threat_module("app.detections.rule_engine").DetectionRuleEngine(str(rules_dir))
+
+    catalog = {rule["rule_id"]: rule for rule in engine.catalog()}
+    assert set(catalog) == {"on_rule", "off_rule"}  # the invalid file is not reported as a rule
+    assert catalog["on_rule"]["enabled"] is True and catalog["off_rule"]["enabled"] is False
+    assert catalog["on_rule"]["mitre_id"] == "T1110" and catalog["on_rule"]["tactic"] == "Credential Access"
+    assert len(engine._rules) == 1  # only the enabled rule is evaluated; the catalog is only a report

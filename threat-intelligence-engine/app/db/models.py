@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -105,3 +105,16 @@ class AttackTimeline(Base):
     nodes: Mapped[list] = mapped_column(JSONB, nullable=False)
     edges: Mapped[list] = mapped_column(JSONB, nullable=False)
     raw_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+
+class DetectionRuleCatalog(Base):
+    __tablename__ = "detection_rule_catalog"
+    rule_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    tactic: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    technique: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mitre_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    loaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)

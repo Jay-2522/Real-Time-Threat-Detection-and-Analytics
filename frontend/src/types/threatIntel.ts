@@ -52,7 +52,16 @@ export interface DetectionRuleSummary {
   avg_score: number;
 }
 
-export type LoadedDetectionRule = Pick<DetectionRuleSummary, "rule_id" | "name" | "severity" | "enabled">;
+export interface LoadedDetectionRule {
+  rule_id: string;
+  name: string;
+  severity: string;
+  enabled: boolean;
+  tactic?: string | null;
+  technique?: string | null;
+  mitre_id?: string | null;
+  loaded_at?: string | null;
+}
 
 export interface AttackTimeline {
   timeline_id: string;

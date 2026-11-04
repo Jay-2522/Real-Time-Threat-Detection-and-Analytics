@@ -1,5 +1,6 @@
 export interface DashboardOverview {
   total_events: number;
+  total_records: number;
   total_predictions: number;
   anomaly_count: number;
   high_risk_count: number;

@@ -36,8 +36,9 @@ export function OverviewPage() {
         </div>
       </section>
 
-      {data ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Persisted pipeline records" value={data?.total_events ?? "..."} detail="Raw and derived records persisted by the pipeline." tooltip="Counts raw and derived records." icon={Activity} />
+      {data ? <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <MetricCard label="Telemetry events" value={data?.total_events ?? "..."} detail="Raw events persisted from Kafka." tooltip="The same count the monitoring page reports." icon={Activity} />
+        <MetricCard label="Persisted pipeline records" value={data?.total_records ?? "..."} detail="Telemetry plus the analytics, risk and feature records Spark derives from it." tooltip="Counts raw and derived records." icon={Activity} tone="cyan" />
         <MetricCard label="Anomaly scores" value={data?.total_predictions ?? "..."} detail="Persisted ML inference records" icon={BrainCircuit} tone="emerald" />
         <MetricCard label="Anomalies" value={data?.anomaly_count ?? "..."} detail="Isolation Forest anomaly decisions" icon={ShieldAlert} tone="amber" />
         <MetricCard label="High anomaly score" value={data?.high_risk_count ?? "..."} detail="Model score at or above 70" icon={AlertTriangle} tone="red" />

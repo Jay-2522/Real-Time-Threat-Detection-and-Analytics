@@ -1,7 +1,11 @@
+from datetime import datetime, timedelta
+
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import AnalyticsMetric, AnomalyPrediction, DeadLetterEvent, FeatureSnapshot, RiskMetric, TelemetryEvent
+
+CHART_WINDOW = timedelta(hours=1)  # the dashboard trends cover the last hour, one point per minute that has data
 
 
 class AnalyticsRepository:
@@ -67,11 +71,39 @@ class AnalyticsRepository:
         ).all()
         return [(row[0], int(row[1])) for row in rows]
 
-    def recent_predictions_for_charts(self, db: Session, limit: int = 200) -> list[AnomalyPrediction]:
-        return list(db.scalars(select(AnomalyPrediction).order_by(desc(AnomalyPrediction.timestamp), desc(AnomalyPrediction.id)).limit(limit)))
+    @staticmethod
+    def _minute_bucket(db: Session, column):
+        if db.get_bind().dialect.name == "postgresql":
+            return func.date_trunc("minute", column)
+        return func.strftime("%Y-%m-%d %H:%M", column)  # SQLite, used by the API contract tests
 
-    def recent_events_for_charts(self, db: Session, limit: int = 500) -> list[TelemetryEvent]:
-        return list(db.scalars(select(TelemetryEvent).order_by(desc(TelemetryEvent.timestamp), desc(TelemetryEvent.id)).limit(limit)))
+    @staticmethod
+    def _chart_cutoff(db: Session, now: datetime) -> datetime:
+        cutoff = now - CHART_WINDOW
+        return cutoff if db.get_bind().dialect.name == "postgresql" else cutoff.replace(tzinfo=None)
+
+    @staticmethod
+    def minute_label(bucket) -> str:
+        return bucket.strftime("%H:%M") if hasattr(bucket, "strftime") else str(bucket)[11:16]
+
+    def risk_trend(self, db: Session, now: datetime) -> list[tuple[str, float, int]]:
+        """Mean model risk and prediction count per minute over the chart window, aggregated in the database."""
+        minute = self._minute_bucket(db, AnomalyPrediction.timestamp)
+        rows = db.execute(
+            select(minute, func.avg(AnomalyPrediction.ml_risk_score), func.count())
+            .where(AnomalyPrediction.timestamp >= self._chart_cutoff(db, now))
+            .group_by(minute).order_by(minute)
+        ).all()
+        return [(self.minute_label(row[0]), float(row[1] or 0.0), int(row[2])) for row in rows]
+
+    def event_volume(self, db: Session, now: datetime) -> list[tuple[str, int]]:
+        """Telemetry events per minute over the chart window, aggregated in the database."""
+        minute = self._minute_bucket(db, TelemetryEvent.timestamp)
+        rows = db.execute(
+            select(minute, func.count()).where(TelemetryEvent.timestamp >= self._chart_cutoff(db, now))
+            .group_by(minute).order_by(minute)
+        ).all()
+        return [(self.minute_label(row[0]), int(row[1])) for row in rows]
 
     def top_entities(self, db: Session, limit: int = 10) -> list[tuple[str, float, int, str | None]]:
         rows = db.execute(

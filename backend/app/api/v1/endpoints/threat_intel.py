@@ -59,11 +59,8 @@ def detection_rules(db: Annotated[Session, Depends(get_db)]) -> list[dict[str, A
 
 
 @router.get("/detections/loaded-rules")
-def loaded_detection_rules() -> list[dict[str, Any]]:
-    try:
-        return service.loaded_detection_rules()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+def loaded_detection_rules(db: Annotated[Session, Depends(get_db)]) -> list[dict[str, Any]]:
+    return service.loaded_detection_rules(db)
 
 
 @router.get("/detections/rules/{rule_id}")

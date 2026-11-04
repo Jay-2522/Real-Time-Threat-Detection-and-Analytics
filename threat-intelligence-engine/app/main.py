@@ -21,13 +21,21 @@ def main() -> None:
     start_http_server(settings.metrics_port)
     logger.info("threat_metrics_started port=%s", settings.metrics_port)
     retry_with_backoff(initialize_database, logger, "PostgreSQL threat schema initialization")
+    rules = DetectionRuleEngine(settings.rules_path)
+    repository = ThreatRepository()
+
+    def publish_rule_catalog() -> None:
+        with SessionLocal() as session, session.begin():
+            repository.sync_rule_catalog(session, rules.catalog())
+
+    retry_with_backoff(publish_rule_catalog, logger, "Detection rule catalog report")
     consumer = ThreatIntelConsumer(
         settings=settings,
         session_factory=SessionLocal,
         enricher=IOCEnricher(),
-        rules=DetectionRuleEngine(settings.rules_path),
+        rules=rules,
         scorer=ThreatScorer(),
-        repository=ThreatRepository(),
+        repository=repository,
         indexer=ThreatIndexer(settings.elasticsearch_host),
     )
     consumer.run()

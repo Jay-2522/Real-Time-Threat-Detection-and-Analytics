@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -324,3 +324,18 @@ class AttackTimeline(Base):
         Index("ix_attack_timelines_updated_at", "updated_at"),
         Index("ix_attack_timelines_severity", "severity"),
     )
+
+
+class DetectionRuleCatalog(Base):
+    """Detection rules as last reported by the running threat engine, enabled or not."""
+    __tablename__ = "detection_rule_catalog"
+
+    rule_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255))
+    severity: Mapped[str] = mapped_column(String(32))
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    tactic: Mapped[str | None] = mapped_column(String(128))
+    technique: Mapped[str | None] = mapped_column(String(255))
+    mitre_id: Mapped[str | None] = mapped_column(String(32))
+    description: Mapped[str | None] = mapped_column(Text)
+    loaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

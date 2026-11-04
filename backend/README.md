@@ -47,6 +47,21 @@ The backend is the FastAPI service layer for the Real-Time Streaming Analytics S
 - `GET /api/v1/mitre/tactics`
 - `WS /api/v1/ws/threat-intel`
 
+## What the dashboard numbers mean
+
+- `total_events` is raw telemetry persisted from Kafka. It is the same number in `/dashboard/overview`,
+  `/monitoring/overview`, `/monitoring/pipeline` and `/analytics/summary`. `total_records` adds the analytics, risk
+  and feature records Spark derives from it.
+- An open incident is any incident not yet resolved (open, acknowledged or investigating), in every endpoint.
+- `/dashboard/risk-trends` and `/dashboard/event-volume` cover the last hour, one point per minute that has data,
+  aggregated in the database.
+- Kafka, Spark and ML Inference health is measured from when each stage last stored data: `active` (recent),
+  `idle` (nothing arriving, e.g. the producer is stopped), `waiting` (not started yet) or `degraded` (input is
+  arriving but the stage has gone quiet). Kafka itself is not probed; its status is the flow of telemetry through it.
+  When Prometheus is unreachable, Spark is judged the same way instead of being reported degraded.
+- `/detections/loaded-rules` lists every detection rule the running threat engine reported at startup, enabled or
+  disabled, from PostgreSQL; it does not depend on Prometheus.
+
 ## Data Sources
 
 - PostgreSQL stores structured telemetry, metrics, features, predictions, and dead letters.

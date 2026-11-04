@@ -13,6 +13,7 @@ const dashboardLayout = await readFile(new URL("../src/layouts/DashboardLayout.t
 const alertPanels = await readFile(new URL("../src/components/alerts/AlertPanels.tsx", import.meta.url), "utf8");
 const overviewPage = await readFile(new URL("../src/pages/OverviewPage.tsx", import.meta.url), "utf8");
 const detectionPage = await readFile(new URL("../src/pages/DetectionEngineeringPage.tsx", import.meta.url), "utf8");
+const threatIntelTypes = await readFile(new URL("../src/types/threatIntel.ts", import.meta.url), "utf8");
 const alertService = await readFile(new URL("../src/services/alertService.ts", import.meta.url), "utf8");
 
 test("dashboard service cannot restore the known fabricated fallbacks", () => {
@@ -27,8 +28,9 @@ test("empty and failed requests have explicit user-facing states", () => {
 });
 
 test("a failed search says why instead of looking like no matches or a dead API", () => {
-  assert.match(apiErrors, /status === 503\) return "Search is temporarily unavailable/);
-  assert.match(apiErrors, /status === 400\) return "That query could not be parsed/);
+  assert.match(apiErrors, /status === 503\) return `\$\{detail \?\? "The service is temporarily unavailable"\}/);
+  assert.match(apiErrors, /status === 400\) return `\$\{detail \?\? "The request could not be processed"\}/);
+  assert.match(apiErrors, /error\.response\?\.data\?\.detail/);  // the API says what failed; the UI never guesses it is search
   assert.match(apiErrors, /status === undefined\) return "API unreachable"/);
   assert.match(dataState, /\{message\}/);
   assert.doesNotMatch(searchPage, />API unreachable</);
@@ -72,7 +74,8 @@ test("visible dashboard labels describe the local demo and persisted data honest
   assert.match(overviewPage, /Anomaly scores/);
   assert.match(overviewPage, /High anomaly score/);
   assert.doesNotMatch(overviewPage, /label="System"/);
-  assert.match(detectionPage, /Loaded rules/);
+  assert.match(detectionPage, /Enabled rules/);
+  assert.match(detectionPage, /Detection rules/);
   assert.match(detectionPage, /Threat-engine monitoring target reachable/);
 });
 
@@ -83,4 +86,16 @@ test("each alert exposes the required read-only detail and linked incident statu
   assert.match(alertPanels, /aria-expanded=\{open\}/);
   assert.match(alertPanels, /alertService\.incident/);
   assert.match(alertService, /\/incidents\/\$\{encodeURIComponent\(incidentId\)\}/);
+});
+
+test("the detection page lists rules reported by the engine, with their real enabled state, and does not blame the API for Prometheus", () => {
+  assert.match(detectionPage, /rule\.enabled \? "text-emerald-300" : "text-slate-500"/);
+  assert.match(detectionPage, /disabled\./);
+  assert.match(threatIntelTypes, /tactic\?: string \| null/);
+  assert.doesNotMatch(apiErrors, /Search is temporarily unavailable/);
+});
+
+test("the overview shows telemetry events and derived records as separate, labelled numbers", () => {
+  assert.match(overviewPage, /label="Telemetry events" value=\{data\?\.total_events/);
+  assert.match(overviewPage, /label="Persisted pipeline records" value=\{data\?\.total_records/);
 });

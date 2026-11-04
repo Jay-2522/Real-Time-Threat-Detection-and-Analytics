@@ -1,14 +1,25 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.db.models import AttackTimeline, DetectionRuleHit, EntityProfile, IOCMatch, ThreatIntelEvent
+from app.db.models import AttackTimeline, DetectionRuleCatalog, DetectionRuleHit, EntityProfile, IOCMatch, ThreatIntelEvent
 from app.schemas.threat import ThreatEnrichment
 
 
 class ThreatRepository:
+    def sync_rule_catalog(self, session: Session, catalog: list[dict]) -> None:
+        """Make the catalog table mirror the rules this engine just loaded: upsert them, drop the ones removed."""
+        now = datetime.now(UTC)
+        if catalog:
+            statement = insert(DetectionRuleCatalog).values([{**rule, "loaded_at": now} for rule in catalog])
+            session.execute(statement.on_conflict_do_update(
+                index_elements=[DetectionRuleCatalog.rule_id],
+                set_={column: getattr(statement.excluded, column) for column in
+                      ("name", "severity", "enabled", "tactic", "technique", "mitre_id", "description", "loaded_at")}))
+        session.execute(delete(DetectionRuleCatalog).where(DetectionRuleCatalog.rule_id.not_in([rule["rule_id"] for rule in catalog])))
+
     def persist(self, session: Session, enrichment: ThreatEnrichment) -> None:
         session.merge(
             ThreatIntelEvent(

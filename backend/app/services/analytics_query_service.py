@@ -1,5 +1,4 @@
 from infrastructure_runtime.security import elasticsearch_options
-from collections import Counter, defaultdict
 from datetime import UTC, datetime
 
 from elasticsearch import Elasticsearch
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.settings import settings
 from app.repositories.analytics_repository import AnalyticsRepository
 from app.schemas.dashboard import ChartPoint, DashboardOverviewResponse, EntityRiskPoint, SystemComponentHealth, SystemHealthResponse
+from app.services.pipeline_health import pipeline_stages
 from app.services.search_client import run_search
 
 
@@ -38,54 +38,40 @@ class AnalyticsQueryService:
         summary = self.summary(db)
         high_risk_count = summary["high_risk_predictions"]
         total_predictions = summary["anomaly_predictions"]
-        total_events = summary["telemetry_events"] + summary["analytics_metrics"] + summary["risk_metrics"] + summary["feature_snapshots"]
+        # total_events is raw telemetry, the same number the monitoring and analytics endpoints report;
+        # total_records adds the records Spark derives from it.
+        total_events = summary["telemetry_events"]
+        total_records = total_events + summary["analytics_metrics"] + summary["risk_metrics"] + summary["feature_snapshots"]
         return DashboardOverviewResponse(
             total_events=total_events,
+            total_records=total_records,
             total_predictions=total_predictions,
             anomaly_count=self._repository.anomaly_count(db),
             high_risk_count=high_risk_count,
             average_risk_score=round(self._repository.average_ml_risk(db), 2),
-            system_status="operational" if total_events or total_predictions else "waiting_for_streams",
+            system_status="operational" if total_records or total_predictions else "waiting_for_streams",
             generated_at=datetime.now(UTC),
         )
 
     def system_health(self, db: Session) -> SystemHealthResponse:
-        components = [
-            self._database_health(db),
-            self._elasticsearch_health(),
-        ]
-        summary = self.summary(db)
-        components.extend(
-            [
-                SystemComponentHealth(name="Kafka", status="observing", detail="Storage sink consumes Kafka topics when running."),
-                SystemComponentHealth(
-                    name="Spark",
-                    status="active" if summary["analytics_metrics"] or summary["risk_metrics"] else "waiting",
-                    detail="Analytics tables contain Spark outputs." if summary["analytics_metrics"] else "No Spark analytics rows persisted yet.",
-                ),
-                SystemComponentHealth(
-                    name="ML Inference",
-                    status="active" if summary["anomaly_predictions"] else "waiting",
-                    detail="Prediction records are being persisted." if summary["anomaly_predictions"] else "No ML predictions persisted yet.",
-                ),
-                SystemComponentHealth(name="Backend", status="online", detail="FastAPI query service is responding."),
-            ]
-        )
-        overall = "operational" if all(item.status in {"online", "active", "observing", "waiting"} for item in components) else "degraded"
+        database = self._database_health(db)
+        components = [database, self._elasticsearch_health()]
+        if database.status == "online":
+            components.extend(SystemComponentHealth(name=stage.name, status=stage.status, detail=stage.detail)
+                              for stage in pipeline_stages(db))
+        else:  # the stage status is read from the database, so it cannot be judged
+            components.extend(SystemComponentHealth(name=name, status="degraded", detail="Cannot be judged: the database is unavailable.")
+                              for name in ("Kafka", "Spark", "ML Inference"))
+        components.append(SystemComponentHealth(name="Backend", status="online", detail="FastAPI query service is responding."))
+        overall = "operational" if all(item.status in {"online", "active", "idle", "waiting"} for item in components) else "degraded"
         return SystemHealthResponse(status=overall, components=components, generated_at=datetime.now(UTC))
 
     def risk_trends(self, db: Session) -> list[ChartPoint]:
-        buckets: dict[str, list[float]] = defaultdict(list)
-        for prediction in reversed(self._repository.recent_predictions_for_charts(db)):
-            label = self._bucket_label(prediction.timestamp)
-            buckets[label].append(float(prediction.ml_risk_score or 0.0))
-        return [ChartPoint(label=label, value=round(sum(values) / max(len(values), 1), 2), secondary_value=len(values)) for label, values in buckets.items()]
+        return [ChartPoint(label=label, value=round(average, 2), secondary_value=count)
+                for label, average, count in self._repository.risk_trend(db, datetime.now(UTC))]
 
     def event_volume(self, db: Session) -> list[ChartPoint]:
-        counts: Counter[str] = Counter()
-        for event in self._repository.recent_events_for_charts(db):
-            counts[self._bucket_label(event.timestamp)] += 1
-        return [ChartPoint(label=label, value=value) for label, value in sorted(counts.items())]
+        return [ChartPoint(label=label, value=count) for label, count in self._repository.event_volume(db, datetime.now(UTC))]
 
     def severity_distribution(self, db: Session) -> list[ChartPoint]:
         return [ChartPoint(label=severity, value=count) for severity, count in self._repository.severity_distribution(db)]
@@ -100,12 +86,6 @@ class AnalyticsQueryService:
         ]
 
     @staticmethod
-    def _bucket_label(value: datetime | None) -> str:
-        if value is None:
-            return "unknown"
-        return value.strftime("%H:%M")
-
-    @staticmethod
     def _database_health(db: Session) -> SystemComponentHealth:
         try:
             db.execute(text("SELECT 1"))
@@ -116,7 +96,7 @@ class AnalyticsQueryService:
     @staticmethod
     def _elasticsearch_health() -> SystemComponentHealth:
         try:
-            client = Elasticsearch(settings.elasticsearch_host, request_timeout=2, **elasticsearch_options(settings.elasticsearch_host))
+            client = Elasticsearch(settings.elasticsearch_host, request_timeout=2, max_retries=0, **elasticsearch_options(settings.elasticsearch_host))
             if client.ping():
                 return SystemComponentHealth(name="Elasticsearch", status="online", detail="Search cluster is reachable.")
             return SystemComponentHealth(name="Elasticsearch", status="degraded", detail="Search cluster did not respond to ping.")

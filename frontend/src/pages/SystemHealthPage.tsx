@@ -24,7 +24,7 @@ export function SystemHealthPage() {
       {!components.length && !health.isLoading && !monitoringServices.isLoading ? <EmptyState /> : null}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {components.map((component) => {
-          const ok = ["healthy", "online", "active", "observing"].includes(component.status);
+          const ok = ["healthy", "online", "active", "observing", "idle", "waiting"].includes(component.status);
           return (
             <article key={component.name} className="rounded-lg border border-white/10 bg-surface-900 p-5 shadow-panel">
               <div className="flex items-start justify-between gap-3">

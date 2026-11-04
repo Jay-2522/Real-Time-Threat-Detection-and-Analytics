@@ -11,7 +11,8 @@ class DashboardMetric(BaseModel):
 
 
 class DashboardOverviewResponse(BaseModel):
-    total_events: int
+    total_events: int  # raw telemetry events
+    total_records: int  # telemetry plus the analytics, risk and feature records derived from it
     total_predictions: int
     anomaly_count: int
     high_risk_count: int

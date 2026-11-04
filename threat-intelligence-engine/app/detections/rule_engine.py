@@ -25,23 +25,34 @@ class DetectionRuleEngine:
     def __init__(self, rules_path: str) -> None:
         self._rules_path = Path(rules_path)
         self._rules: list[dict[str, Any]] = []
+        self._catalog: list[dict[str, Any]] = []
         self._failed_logins: dict[str, deque[datetime]] = defaultdict(deque)
         self.reload()
 
     def reload(self) -> None:
         rules: list[dict[str, Any]] = []
+        catalog: list[dict[str, Any]] = []
         for path in sorted(self._rules_path.glob("*.yaml")):
             with path.open("r", encoding="utf-8") as handle:
                 rule = yaml.safe_load(handle) or {}
-            if self._valid(rule) and rule["enabled"]:
-                rules.append(rule)
-            elif not self._valid(rule):
+            if self._valid(rule):
+                catalog.append({"rule_id": str(rule["id"]), "name": str(rule["name"]), "severity": str(rule["severity"]),
+                                "enabled": rule["enabled"], "tactic": rule.get("tactic"), "technique": rule.get("technique"),
+                                "mitre_id": rule.get("mitre_id"), "description": rule.get("description")})
+                if rule["enabled"]:
+                    rules.append(rule)
+            else:
                 logger.warning("invalid_detection_rule path=%s", path)
         self._rules = rules
+        self._catalog = catalog
         DETECTION_RULE_LOADED.clear()
         for rule in rules:
             DETECTION_RULE_LOADED.labels(str(rule["id"]), str(rule["name"]), str(rule["severity"])).set(1)
         logger.info("detection_rules_loaded count=%s path=%s", len(rules), self._rules_path)
+
+    def catalog(self) -> list[dict[str, Any]]:
+        """Every valid rule file found, enabled or not, for reporting to the API."""
+        return list(self._catalog)
 
     def evaluate(self, payload: dict[str, Any], risk_score: float) -> list[RuleHit]:
         hits: list[RuleHit] = []

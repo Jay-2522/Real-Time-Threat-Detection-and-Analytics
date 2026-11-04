@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.settings import Settings
 from app.db.models import Alert, AnalyticsMetric, AnomalyPrediction, DeadLetterEvent, FeatureSnapshot, Incident, RiskMetric, TelemetryEvent
 from app.schemas.monitoring import ErrorSummary, MetricsSummary, MonitoringOverview, PipelineMetrics, ServiceHealth
+from app.services.pipeline_health import StageHealth, pipeline_stages
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class MonitoringService:
             total_events=counts["telemetry_events"],
             total_predictions=counts["anomaly_predictions"],
             total_alerts=counts["alerts"],
-            open_incidents=self._count(db, Incident, Incident.status.in_(["open", "investigating"])),
+            open_incidents=self._count(db, Incident, Incident.status != "resolved"),  # same definition as the alerts API
             generated_at=self._now(),
             prometheus_url=self._settings.prometheus_url,
             grafana_url=self._settings.grafana_url,
@@ -53,6 +54,7 @@ class MonitoringService:
         prometheus_targets = self._prometheus_targets()
         db_status = self._postgres_status(db, now)
         elastic_status = self._elasticsearch_status(now)
+        stages = self._stages(db)
         service_specs = [
             ("backend", "Backend API", "api", "http://localhost:8000/metrics"),
             ("ml-inference", "ML Inference", "ml", "http://localhost:9101/metrics"),
@@ -67,16 +69,35 @@ class MonitoringService:
             [
                 db_status,
                 elastic_status,
-                ServiceHealth(name="Kafka", status="observing", detail="Kafka is monitored indirectly through pipeline throughput and service consumers.", category="streaming", endpoint="localhost:9092", last_checked=now),
-                self._spark_status(prometheus_targets, now),
-                ServiceHealth(name="Frontend", status="healthy", detail="React dashboard is served locally by the frontend container.", category="ui", endpoint="http://localhost:5173", last_checked=now),
+                self._stage_service(stages, "Kafka", "streaming", now),
+                self._spark_status(prometheus_targets, now, stages),
             ]
         )
         return services
 
-    def _spark_status(self, targets, now):
+    @staticmethod
+    def _stages(db: Session) -> dict[str, StageHealth] | None:
+        try:
+            return {stage.name: stage for stage in pipeline_stages(db)}
+        except SQLAlchemyError as exc:
+            logger.warning("pipeline_stage_check_failed error=%s", exc)
+            return None
+
+    @staticmethod
+    def _stage_service(stages: dict[str, StageHealth] | None, name: str, category: str, now: datetime) -> ServiceHealth:
+        """A stage judged from persisted data: quiet-because-idle and not-started are neutral, a stalled stage is degraded."""
+        if stages is None:
+            return ServiceHealth(name=name, status="degraded", detail="Cannot be judged: the database is unavailable.", category=category, endpoint=None, last_checked=now)
+        stage = stages[name]
+        status = {"active": "healthy", "degraded": "degraded"}.get(stage.status, "observing")
+        return ServiceHealth(name=name, status=status, detail=stage.detail, category=category, endpoint=None, last_checked=now)
+
+    def _spark_status(self, targets, now, stages=None):
         active = self._prometheus_scalar('sum(spark_streaming_query_active)')
         age = self._prometheus_scalar('time() - max(spark_query_monitor_timestamp_seconds)')
+        if active is None and age is None:  # Prometheus cannot say: judge Spark from its persisted output instead of blaming it
+            spark = self._stage_service(stages, "Spark", "processing", now)
+            return spark.model_copy(update={"detail": f"{spark.detail} Judged from persisted output; Prometheus is unavailable."})
         ready = targets.get('spark-driver') == 1 and active == 4 and age is not None and 0 <= age < 60
         return ServiceHealth(name="Spark", status="healthy" if ready else "degraded",
             detail="All four queries are active with a fresh authenticated observation." if ready
@@ -156,7 +177,7 @@ class MonitoringService:
 
     def _elasticsearch_status(self, checked_at: datetime) -> ServiceHealth:
         try:
-            client = Elasticsearch(self._settings.elasticsearch_host, request_timeout=1, **elasticsearch_options(self._settings.elasticsearch_host))
+            client = Elasticsearch(self._settings.elasticsearch_host, request_timeout=1, max_retries=0, **elasticsearch_options(self._settings.elasticsearch_host))
             if client.ping():
                 return ServiceHealth(name="Elasticsearch", status="healthy", detail="Elasticsearch ping succeeded.", category="search", endpoint="http://localhost:9200", last_checked=checked_at)
             return ServiceHealth(name="Elasticsearch", status="degraded", detail="Elasticsearch ping returned false.", category="search", endpoint="http://localhost:9200", last_checked=checked_at)

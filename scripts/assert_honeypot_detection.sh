@@ -148,4 +148,34 @@ if [[ "$invalid_status" != 400 ]]; then
   exit 1
 fi
 
+# Health must be measured, rules must come from the engine's own report, and the counts must agree across endpoints.
+api_get() {
+  curl -fsS -b "$work_dir/cookies.txt" -H 'Origin: http://localhost:5173' "http://localhost:8000/api/v1/$1"
+}
+api_get dashboard/system-health >"$work_dir/health.json"
+api_get detections/loaded-rules >"$work_dir/rules.json"
+api_get dashboard/overview >"$work_dir/overview.json"
+api_get monitoring/overview >"$work_dir/monitoring.json"
+python3 - "$work_dir" <<'PY'
+import json
+import sys
+
+folder = sys.argv[1]
+load = lambda name: json.load(open(f"{folder}/{name}.json", encoding="utf-8"))
+components = {item["name"]: item for item in load("health")["components"]}
+for name in ("Kafka", "Spark", "ML Inference"):
+    detail = components[name]["detail"]
+    if " ago" not in detail:
+        raise SystemExit(f"{name} health is not measured from persisted data: {components[name]}")
+if components["Spark"]["status"] != "active" or components["ML Inference"]["status"] != "active":
+    raise SystemExit(f"Spark and ML should be active after the replay and lineage check: {components}")
+if components["Kafka"]["status"] not in {"active", "idle"}:
+    raise SystemExit(f"Kafka flow status should be active or idle, not {components['Kafka']}")
+rules = {rule["rule_id"]: rule for rule in load("rules")}
+if not rules.get("brute_force_detection", {}).get("enabled"):
+    raise SystemExit(f"The engine's rule catalog lacks the enabled brute-force rule: {sorted(rules)}")
+if load("overview")["total_events"] != load("monitoring")["total_events"]:
+    raise SystemExit("The dashboard and monitoring endpoints disagree on the number of telemetry events.")
+PY
+
 echo "Synthetic correlation demo passed: documentation_source=${DOCUMENTATION_SOURCE_IP} documentation_alerts=${documentation_brute_alerts} documentation_rules=brute_force_detection documentation_incidents=${documentation_incidents} documentation_incident_events=${documentation_incident_events}; grouping_source=${GROUPING_SOURCE_IP} grouping_alerts=$(( grouping_brute_alerts + grouping_lateral_alerts )) grouping_rules=${grouping_rule_names} grouping_incidents=${grouping_incidents} grouping_incident_events=${grouping_incident_events} grouping_rule_alerts_linked=${grouping_rule_linked}; honeypot_windows_scored=$(( documentation_scored + grouping_scored )); search_matches=events:${event_matches},alerts:${alert_matches},threat_intel:${threat_matches}; total_fixture_alerts=${total_fixture_alerts} total_fixture_incidents=${total_fixture_incidents}. Deliberately constructed fixture records validate correlation logic, not real attacker behavior."

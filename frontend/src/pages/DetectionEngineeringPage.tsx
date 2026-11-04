@@ -15,6 +15,8 @@ export function DetectionEngineeringPage() {
   const services = useAsyncData(monitoringService.services, [], 10_000);
   const threatEngine = services.data?.find((service) => service.name === "Threat Intelligence Engine");
   const pipelineHealth = threatEngine?.status ?? (services.error ? "unavailable" : "loading");
+  const enabledRules = (loadedRules.data ?? []).filter((rule) => rule.enabled).length;
+  const disabledRules = (loadedRules.data?.length ?? 0) - enabledRules;
   return (
     <div className="space-y-6">
       <ApiError errors={[rules.error, loadedRules.error, stats.error, services.error]} />
@@ -24,7 +26,7 @@ export function DetectionEngineeringPage() {
         <p className="mt-2 text-sm text-slate-400">Loaded local YAML rules, rule-hit analytics, monitoring reachability, and execution scoring.</p>
       </section>
       <section className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="Loaded rules" value={loadedRules.data?.length ?? "..."} detail="Rule files reported loaded by the running threat engine." icon={ShieldCheck} />
+        <MetricCard label="Enabled rules" value={loadedRules.data ? enabledRules : "..."} detail={loadedRules.data ? `Rules the running threat engine reported loaded; ${disabledRules} disabled.` : "Rules the running threat engine reported loaded."} icon={ShieldCheck} />
         <MetricCard label="Rule hits" value={stats.data?.total_rule_hits ?? "..."} detail="Persisted detection rule hits." icon={Activity} tone="amber" />
         <MetricCard label="Threat-engine monitoring target reachable" value={pipelineHealth} detail={threatEngine?.detail ?? "Waiting for the Prometheus service-health signal."} icon={FlaskConical} tone={pipelineHealth === "healthy" ? "emerald" : "amber"} />
       </section>
@@ -44,7 +46,7 @@ export function DetectionEngineeringPage() {
           </div>
         </article>
         <article className="rounded-lg border border-white/10 bg-surface-900 p-5 shadow-panel">
-          <h2 className="flex items-center gap-2 font-semibold text-white"><SlidersHorizontal size={18} /> Loaded rules</h2>
+          <h2 className="flex items-center gap-2 font-semibold text-white"><SlidersHorizontal size={18} /> Detection rules</h2>
           <div className="mt-4 space-y-3">
             {(loadedRules.data ?? []).map((rule) => {
               const hits = rules.data?.find((item) => item.rule_id === rule.rule_id);
@@ -60,7 +62,7 @@ export function DetectionEngineeringPage() {
                 <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
                   <span>{hits?.hit_count ?? 0} hits</span>
                   <span>{hits ? `avg score ${hits.avg_score}` : "No hits yet"}</span>
-                  <span className="text-emerald-300">{rule.enabled ? "enabled" : "disabled"}</span>
+                  <span className={rule.enabled ? "text-emerald-300" : "text-slate-500"}>{rule.enabled ? "enabled" : "disabled"}</span>
                 </div>
               </div>
             );})}
