@@ -34,6 +34,17 @@ def test_hardened_runtime_has_no_development_overrides():
     assert all(not v or 'name' not in v for v in config['volumes'].values())
 
 
+def test_default_compose_runs_built_images_and_hot_reload_is_opt_in():
+    base=yaml.safe_load((ROOT/'docker-compose.yml').read_text())['services']
+    for name,service in base.items():
+        assert '--reload' not in str(service.get('command')) and 'npm run dev' not in str(service.get('command')), name
+    for name in ('backend','schema-bootstrap'):  # the code in the image is what runs, not a bind-mounted checkout
+        assert not any(v.split(':')[1].startswith('/app/') for v in base[name].get('volumes',[])), name
+    assert base['frontend']['build']['target']=='runtime' and not base['frontend'].get('volumes')
+    dev=yaml.safe_load((ROOT/'docker-compose.dev.yml').read_text())['services']
+    assert '--reload' in dev['backend']['command'] and dev['frontend']['build']['target']=='dev'
+
+
 def test_production_transport_settings_fail_closed(tmp_path,monkeypatch):
     from infrastructure_runtime import security
     security.configuration.cache_clear()

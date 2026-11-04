@@ -1,0 +1,23 @@
+# Optional hot-reload overrides for working on the code:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# The default docker-compose.yml runs the built backend image and the compiled frontend.
+services:
+  backend:
+    volumes:
+      - ${DEV_BIND_ROOT:-.}/backend/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - ${DEV_BIND_ROOT:-.}/frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:5173"]
+
+volumes:
+  frontend_node_modules:
+    name: streaming-analytics-frontend-node-modules

@@ -80,6 +80,13 @@ The backend is the FastAPI service layer for the Real-Time Streaming Analytics S
 uvicorn app.main:app --reload
 ```
 
+`docker compose up --build` runs the built backend image and the compiled frontend served by nginx. For hot
+reload of both while editing code, add the override file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
 When running through Docker Compose, the backend uses:
 
 ```text
