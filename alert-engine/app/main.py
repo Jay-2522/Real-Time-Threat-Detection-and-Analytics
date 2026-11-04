@@ -6,6 +6,7 @@ from app.db.session import create_session_factory
 from app.elastic.indexer import AlertIndexer
 from app.incidents.correlator import IncidentCorrelator
 from app.repositories.alert_repository import AlertRepository
+from app.incidents.lifecycle import IncidentLifecycleWorker
 from app.rules.rule_engine import AlertRulesEngine
 from app.services.alert_service import AlertProcessingService
 from app.utils.logging import configure_logging
@@ -32,7 +33,12 @@ def main() -> None:
         indexer=indexer,
         dedup_cooldown_seconds=settings.dedup_cooldown_seconds,
     )
-    AlertEngineConsumer(settings, session_factory, service).run()
+    lifecycle = IncidentLifecycleWorker(session_factory, settings.incident_auto_resolve_seconds)
+    lifecycle.start()
+    try:
+        AlertEngineConsumer(settings, session_factory, service).run()
+    finally:
+        lifecycle.stop()
 
 
 if __name__ == "__main__":

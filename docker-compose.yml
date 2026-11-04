@@ -349,6 +349,7 @@ services:
       ELASTICSEARCH_HOST: http://streaming-analytics-elasticsearch:9200
       ALERT_DEDUP_COOLDOWN_SECONDS: 120
       INCIDENT_CORRELATION_WINDOW_SECONDS: 900
+      INCIDENT_AUTO_RESOLVE_SECONDS: 3600
     ports:
       - "127.0.0.1:9103:9103"
     healthcheck:

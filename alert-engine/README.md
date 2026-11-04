@@ -24,5 +24,9 @@ docker logs -f streaming-analytics-alert-engine
 - PostgreSQL cooldown deduplication keyed by rule and entity.
 - Incident correlation by entity and severity.
 - Incident timeline tracking.
+- Automatic resolution of quiet incidents: an incident still `open` after `INCIDENT_AUTO_RESOLVE_SECONDS`
+  (default 3600, `0` disables) without a new alert is resolved together with its open alerts, and a note says so.
+  Acknowledged and investigating incidents, and alerts an analyst has already actioned, are never changed. New
+  activity on the same entity afterwards starts a new incident.
 - Rule-based AI explanations and recommended actions.
 

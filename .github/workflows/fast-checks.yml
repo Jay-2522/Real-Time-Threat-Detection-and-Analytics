@@ -85,6 +85,8 @@ jobs:
         run: pytest -q backend/tests/test_auth_migration.py
       - name: Test outbox circuit breaker and backlog cap
         run: pytest -q tests/reliability/test_outbox_circuit.py
+      - name: Test automatic incident resolution
+        run: pytest -q tests/reliability/test_incident_lifecycle.py
 
   spark-contract:
     runs-on: ubuntu-latest
