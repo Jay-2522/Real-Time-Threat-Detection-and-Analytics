@@ -14,6 +14,8 @@ const alertPanels = await readFile(new URL("../src/components/alerts/AlertPanels
 const overviewPage = await readFile(new URL("../src/pages/OverviewPage.tsx", import.meta.url), "utf8");
 const detectionPage = await readFile(new URL("../src/pages/DetectionEngineeringPage.tsx", import.meta.url), "utf8");
 const threatIntelTypes = await readFile(new URL("../src/types/threatIntel.ts", import.meta.url), "utf8");
+const app = await readFile(new URL("../src/App.tsx", import.meta.url), "utf8");
+const environment = await readFile(new URL("../src/config/environment.ts", import.meta.url), "utf8");
 const alertService = await readFile(new URL("../src/services/alertService.ts", import.meta.url), "utf8");
 
 test("dashboard service cannot restore the known fabricated fallbacks", () => {
@@ -53,18 +55,12 @@ test("the shell contains no inert search, notification, or duplicate SOC feed co
   assert.doesNotMatch(alertPanels, /Live SOC Feed/);
 });
 
-test("default navigation contains exactly the six demo-ready pages", () => {
-  const block = dashboardLayout.match(/const defaultNavigationItems = \[(.*?)\];/s);
-  assert.ok(block, "default navigation declaration is present");
-  const labels = [...block[1].matchAll(/label: "([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(labels, [
-    "Overview",
-    "Live Stream",
-    "ML Predictions",
-    "Alerts",
-    "Incidents",
-    "Detection Engineering",
-  ]);
+test("every routed page is reachable from the sidebar, and pages are on unless explicitly disabled", () => {
+  const routes = [...app.matchAll(/<Route path="([^"*]+)"/g)].map((match) => `/${match[1]}`);
+  const links = [...dashboardLayout.matchAll(/href: "([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(routes.length, 14);
+  assert.deepEqual([...routes].sort(), links.filter((href) => href !== "/").sort());
+  assert.match(environment, /value !== "false"/);
 });
 
 test("visible dashboard labels describe the local demo and persisted data honestly", () => {
