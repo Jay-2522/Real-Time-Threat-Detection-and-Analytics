@@ -17,13 +17,13 @@ def analytics_summary(db: Annotated[Session, Depends(get_db)]) -> AnalyticsSumma
 
 
 @router.get("/events/recent", response_model=list[RecordResponse])
-def recent_events(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=500)) -> list:
-    return service.recent_events(db, limit)
+def recent_events(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=500), offset: int = Query(default=0, ge=0)) -> list:
+    return service.recent_events(db, limit, offset)
 
 
 @router.get("/predictions/recent", response_model=list[PredictionResponse])
-def recent_predictions(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=500)) -> list:
-    return service.recent_predictions(db, limit)
+def recent_predictions(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=500), offset: int = Query(default=0, ge=0)) -> list:
+    return service.recent_predictions(db, limit, offset)
 
 
 @router.get("/predictions/{entity_id}", response_model=PredictionResponse)
@@ -35,8 +35,8 @@ def latest_prediction(entity_id: str, db: Annotated[Session, Depends(get_db)]):
 
 
 @router.get("/risks/high", response_model=list[PredictionResponse])
-def high_risks(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=500)) -> list:
-    return service.high_risks(db, limit)
+def high_risks(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=500), offset: int = Query(default=0, ge=0)) -> list:
+    return service.high_risks(db, limit, offset)
 
 
 @router.get("/search/events", response_model=list[dict[str, Any]])

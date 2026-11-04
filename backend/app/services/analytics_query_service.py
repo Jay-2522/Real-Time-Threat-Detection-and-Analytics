@@ -19,17 +19,17 @@ class AnalyticsQueryService:
     def summary(self, db: Session) -> dict[str, int]:
         return self._repository.summary(db)
 
-    def recent_events(self, db: Session, limit: int) -> list:
-        return self._repository.recent_events(db, limit)
+    def recent_events(self, db: Session, limit: int, offset: int = 0) -> list:
+        return self._repository.recent_events(db, limit, offset)
 
-    def recent_predictions(self, db: Session, limit: int) -> list:
-        return self._repository.recent_predictions(db, limit)
+    def recent_predictions(self, db: Session, limit: int, offset: int = 0) -> list:
+        return self._repository.recent_predictions(db, limit, offset)
 
     def latest_prediction(self, db: Session, entity_id: str):
         return self._repository.latest_prediction_for_entity(db, entity_id)
 
-    def high_risks(self, db: Session, limit: int) -> list:
-        return self._repository.high_risks(db, limit)
+    def high_risks(self, db: Session, limit: int, offset: int = 0) -> list:
+        return self._repository.high_risks(db, limit, offset)
 
     def search_events(self, query: str, limit: int = 25) -> list[dict]:
         return run_search("telemetry-events,analytics-events,ml-predictions", query, limit, newest_first=True)

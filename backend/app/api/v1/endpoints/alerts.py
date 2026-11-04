@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal, get_db
 from app.auth.service import audit, authorize_write
 from app.core.metrics import ACTIVE_WEBSOCKET_CONNECTIONS, ALERT_WEBSOCKET_MESSAGES_TOTAL
-from app.schemas.alerts import AlertResponse, AlertStatsResponse, IncidentResponse, StatusUpdateRequest
+from app.schemas.alerts import AlertResponse, AlertStatsResponse, AlertSummary, IncidentResponse, IncidentSummary, StatusUpdateRequest
 from app.services.alert_service import AlertQueryService
 
 router = APIRouter()
@@ -16,29 +16,29 @@ service = AlertQueryService()
 logger = logging.getLogger(__name__)
 
 
-@router.get("/alerts/recent", response_model=list[AlertResponse])
-def recent_alerts(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200)) -> list:
-    return service.recent_alerts(db, limit)
+@router.get("/alerts/recent", response_model=list[AlertSummary])
+def recent_alerts(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0)) -> list:
+    return service.recent_alerts(db, limit, offset)
 
 
-@router.get("/alerts/high", response_model=list[AlertResponse])
-def high_alerts(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200)) -> list:
-    return service.high_alerts(db, limit)
+@router.get("/alerts/high", response_model=list[AlertSummary])
+def high_alerts(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0)) -> list:
+    return service.high_alerts(db, limit, offset)
 
 
-@router.get("/alerts/critical", response_model=list[AlertResponse])
-def critical_alerts(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200)) -> list:
-    return service.critical_alerts(db, limit)
+@router.get("/alerts/critical", response_model=list[AlertSummary])
+def critical_alerts(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0)) -> list:
+    return service.critical_alerts(db, limit, offset)
 
 
-@router.get("/incidents/recent", response_model=list[IncidentResponse])
-def recent_incidents(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200)) -> list:
-    return service.recent_incidents(db, limit)
+@router.get("/incidents/recent", response_model=list[IncidentSummary])
+def recent_incidents(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0)) -> list:
+    return service.recent_incidents(db, limit, offset)
 
 
-@router.get("/incidents/open", response_model=list[IncidentResponse])
-def open_incidents(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200)) -> list:
-    return service.open_incidents(db, limit)
+@router.get("/incidents/open", response_model=list[IncidentSummary])
+def open_incidents(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0)) -> list:
+    return service.open_incidents(db, limit, offset)
 
 
 @router.get("/incidents/{incident_id}", response_model=IncidentResponse)

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
@@ -41,6 +42,7 @@ def create_application() -> FastAPI:
         ],
     )
 
+    application.add_middleware(GZipMiddleware, minimum_size=1024)  # list responses are repetitive JSON
     application.add_middleware(AccessControlMiddleware)
     application.add_middleware(
         CORSMiddleware,

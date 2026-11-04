@@ -23,11 +23,11 @@ class AnalyticsRepository:
             or 0,
         }
 
-    def recent_events(self, db: Session, limit: int = 50) -> list[TelemetryEvent]:
-        return list(db.scalars(select(TelemetryEvent).order_by(desc(TelemetryEvent.timestamp), desc(TelemetryEvent.id)).limit(limit)))
+    def recent_events(self, db: Session, limit: int = 50, offset: int = 0) -> list[TelemetryEvent]:
+        return list(db.scalars(select(TelemetryEvent).order_by(desc(TelemetryEvent.timestamp), desc(TelemetryEvent.id)).limit(limit).offset(offset)))
 
-    def recent_predictions(self, db: Session, limit: int = 50) -> list[AnomalyPrediction]:
-        return list(db.scalars(select(AnomalyPrediction).order_by(desc(AnomalyPrediction.timestamp), desc(AnomalyPrediction.id)).limit(limit)))
+    def recent_predictions(self, db: Session, limit: int = 50, offset: int = 0) -> list[AnomalyPrediction]:
+        return list(db.scalars(select(AnomalyPrediction).order_by(desc(AnomalyPrediction.timestamp), desc(AnomalyPrediction.id)).limit(limit).offset(offset)))
 
     def latest_prediction_for_entity(self, db: Session, entity_id: str) -> AnomalyPrediction | None:
         return db.scalars(
@@ -37,13 +37,14 @@ class AnalyticsRepository:
             .limit(1)
         ).first()
 
-    def high_risks(self, db: Session, limit: int = 50) -> list[AnomalyPrediction]:
+    def high_risks(self, db: Session, limit: int = 50, offset: int = 0) -> list[AnomalyPrediction]:
         return list(
             db.scalars(
                 select(AnomalyPrediction)
                 .where(or_(AnomalyPrediction.ml_risk_score >= 70, AnomalyPrediction.severity.in_(["high", "critical"])))
-                .order_by(desc(AnomalyPrediction.ml_risk_score), desc(AnomalyPrediction.timestamp))
+                .order_by(desc(AnomalyPrediction.ml_risk_score), desc(AnomalyPrediction.timestamp), desc(AnomalyPrediction.id))
                 .limit(limit)
+                .offset(offset)
             )
         )
 

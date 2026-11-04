@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 AlertStatus = Literal["open", "acknowledged", "investigating", "resolved"]
 
@@ -31,6 +31,12 @@ class AlertResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AlertSummary(AlertResponse):
+    """List rows leave out the stored source payload; it is large and only the detail views need it."""
+
+    raw_payload: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+
 class IncidentResponse(BaseModel):
     id: int
     incident_id: str
@@ -48,6 +54,10 @@ class IncidentResponse(BaseModel):
     raw_payload: dict[str, Any]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class IncidentSummary(IncidentResponse):
+    raw_payload: dict[str, Any] = Field(default_factory=dict, exclude=True)
 
 
 class StatusUpdateRequest(BaseModel):

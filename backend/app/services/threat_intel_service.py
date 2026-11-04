@@ -30,20 +30,20 @@ class ThreatIntelQueryService:
             "severity_counts": {row[0]: int(row[1]) for row in severity_rows},
         }
 
-    def iocs(self, db: Session, limit: int = 100, ioc_type: str | None = None) -> list[IOCMatch]:
-        statement = select(IOCMatch).order_by(desc(IOCMatch.timestamp), desc(IOCMatch.id)).limit(limit)
+    def iocs(self, db: Session, limit: int = 100, offset: int = 0, ioc_type: str | None = None) -> list[IOCMatch]:
+        statement = select(IOCMatch).order_by(desc(IOCMatch.timestamp), desc(IOCMatch.id)).limit(limit).offset(offset)
         if ioc_type:
             statement = statement.where(IOCMatch.ioc_type == ioc_type)
         return list(db.scalars(statement))
 
-    def entities(self, db: Session, limit: int = 100) -> list[EntityProfile]:
-        return list(db.scalars(select(EntityProfile).order_by(desc(EntityProfile.risk_score), desc(EntityProfile.last_seen)).limit(limit)))
+    def entities(self, db: Session, limit: int = 100, offset: int = 0) -> list[EntityProfile]:
+        return list(db.scalars(select(EntityProfile).order_by(desc(EntityProfile.risk_score), desc(EntityProfile.last_seen), EntityProfile.id).limit(limit).offset(offset)))
 
     def entity(self, db: Session, entity_id: str) -> EntityProfile | None:
         return db.scalars(select(EntityProfile).where(EntityProfile.entity_id == entity_id).limit(1)).first()
 
-    def high_risk_entities(self, db: Session, limit: int = 50) -> list[EntityProfile]:
-        return list(db.scalars(select(EntityProfile).where(EntityProfile.risk_score >= 70).order_by(desc(EntityProfile.risk_score)).limit(limit)))
+    def high_risk_entities(self, db: Session, limit: int = 50, offset: int = 0) -> list[EntityProfile]:
+        return list(db.scalars(select(EntityProfile).where(EntityProfile.risk_score >= 70).order_by(desc(EntityProfile.risk_score), EntityProfile.id).limit(limit).offset(offset)))
 
     def search_entities(self, db: Session, query: str, limit: int = 50) -> list[EntityProfile]:
         pattern = f"%{query}%"
@@ -136,8 +136,8 @@ class ThreatIntelQueryService:
         return self._mitre.techniques()
 
     @staticmethod
-    def _row(row: Any) -> dict[str, Any]:
-        data = {column.name: getattr(row, column.name) for column in row.__table__.columns}
+    def _row(row: Any, omit: frozenset[str] = frozenset()) -> dict[str, Any]:
+        data = {column.name: getattr(row, column.name) for column in row.__table__.columns if column.name not in omit}
         for key, value in list(data.items()):
             if hasattr(value, "isoformat"):
                 data[key] = value.isoformat()

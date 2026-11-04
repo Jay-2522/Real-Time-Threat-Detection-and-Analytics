@@ -11,6 +11,8 @@ from app.services.threat_intel_service import ThreatIntelQueryService
 router = APIRouter()
 service = ThreatIntelQueryService()
 logger = logging.getLogger(__name__)
+# Entity lists leave out the full stored profile; GET /entities/{entity_id} returns it.
+LIST_OMITS = frozenset({"raw_profile"})
 
 
 @router.get("/threat-intel/overview")
@@ -19,13 +21,13 @@ def overview(db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
 
 
 @router.get("/threat-intel/iocs")
-def iocs(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=100, ge=1, le=500), ioc_type: str | None = None) -> list:
-    return [service._row(row) for row in service.iocs(db, limit, ioc_type)]
+def iocs(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=100, ge=1, le=500), offset: int = Query(default=0, ge=0), ioc_type: str | None = None) -> list:
+    return [service._row(row) for row in service.iocs(db, limit, offset, ioc_type)]
 
 
 @router.get("/threat-intel/entities")
-def entities(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=100, ge=1, le=500)) -> list:
-    return [service._row(row) for row in service.entities(db, limit)]
+def entities(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=100, ge=1, le=500), offset: int = Query(default=0, ge=0)) -> list:
+    return [service._row(row, LIST_OMITS) for row in service.entities(db, limit, offset)]
 
 
 @router.get("/threat-intel/mitre")
@@ -77,13 +79,13 @@ def rule_stats(db: Annotated[Session, Depends(get_db)]) -> dict[str, Any]:
 
 
 @router.get("/entities/high-risk")
-def high_risk_entities(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200)) -> list:
-    return [service._row(row) for row in service.high_risk_entities(db, limit)]
+def high_risk_entities(db: Annotated[Session, Depends(get_db)], limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0)) -> list:
+    return [service._row(row, LIST_OMITS) for row in service.high_risk_entities(db, limit, offset)]
 
 
 @router.get("/entities/search")
 def search_entities(db: Annotated[Session, Depends(get_db)], q: str = Query(min_length=1), limit: int = Query(default=50, ge=1, le=200)) -> list:
-    return [service._row(row) for row in service.search_entities(db, q, limit)]
+    return [service._row(row, LIST_OMITS) for row in service.search_entities(db, q, limit)]
 
 
 @router.get("/entities/{entity_id}")

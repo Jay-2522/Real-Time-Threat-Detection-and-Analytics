@@ -11,20 +11,20 @@ class AlertQueryService:
     def __init__(self, repository: AlertRepository | None = None) -> None:
         self._repository = repository or AlertRepository()
 
-    def recent_alerts(self, db: Session, limit: int) -> list:
-        return self._repository.recent_alerts(db, limit)
+    def recent_alerts(self, db: Session, limit: int, offset: int = 0) -> list:
+        return self._repository.recent_alerts(db, limit, offset)
 
-    def high_alerts(self, db: Session, limit: int) -> list:
-        return self._repository.alerts_by_severity(db, ["high", "critical"], limit)
+    def high_alerts(self, db: Session, limit: int, offset: int = 0) -> list:
+        return self._repository.alerts_by_severity(db, ["high", "critical"], limit, offset)
 
-    def critical_alerts(self, db: Session, limit: int) -> list:
-        return self._repository.alerts_by_severity(db, ["critical"], limit)
+    def critical_alerts(self, db: Session, limit: int, offset: int = 0) -> list:
+        return self._repository.alerts_by_severity(db, ["critical"], limit, offset)
 
-    def recent_incidents(self, db: Session, limit: int) -> list:
-        return self._repository.recent_incidents(db, limit)
+    def recent_incidents(self, db: Session, limit: int, offset: int = 0) -> list:
+        return self._repository.recent_incidents(db, limit, offset)
 
-    def open_incidents(self, db: Session, limit: int) -> list:
-        return self._repository.open_incidents(db, limit)
+    def open_incidents(self, db: Session, limit: int, offset: int = 0) -> list:
+        return self._repository.open_incidents(db, limit, offset)
 
     def incident(self, db: Session, incident_id: str):
         return self._repository.incident(db, incident_id)

@@ -5,17 +5,17 @@ from app.db.models import Alert, Incident
 
 
 class AlertRepository:
-    def recent_alerts(self, db: Session, limit: int = 50) -> list[Alert]:
-        return list(db.scalars(select(Alert).order_by(desc(Alert.created_at), desc(Alert.id)).limit(limit)))
+    def recent_alerts(self, db: Session, limit: int = 50, offset: int = 0) -> list[Alert]:
+        return list(db.scalars(select(Alert).order_by(desc(Alert.created_at), desc(Alert.id)).limit(limit).offset(offset)))
 
-    def alerts_by_severity(self, db: Session, severities: list[str], limit: int = 50) -> list[Alert]:
-        return list(db.scalars(select(Alert).where(Alert.severity.in_(severities)).order_by(desc(Alert.timestamp)).limit(limit)))
+    def alerts_by_severity(self, db: Session, severities: list[str], limit: int = 50, offset: int = 0) -> list[Alert]:
+        return list(db.scalars(select(Alert).where(Alert.severity.in_(severities)).order_by(desc(Alert.timestamp), desc(Alert.id)).limit(limit).offset(offset)))
 
-    def recent_incidents(self, db: Session, limit: int = 50) -> list[Incident]:
-        return list(db.scalars(select(Incident).order_by(desc(Incident.updated_at), desc(Incident.id)).limit(limit)))
+    def recent_incidents(self, db: Session, limit: int = 50, offset: int = 0) -> list[Incident]:
+        return list(db.scalars(select(Incident).order_by(desc(Incident.updated_at), desc(Incident.id)).limit(limit).offset(offset)))
 
-    def open_incidents(self, db: Session, limit: int = 50) -> list[Incident]:
-        return list(db.scalars(select(Incident).where(Incident.status != "resolved").order_by(desc(Incident.updated_at)).limit(limit)))
+    def open_incidents(self, db: Session, limit: int = 50, offset: int = 0) -> list[Incident]:
+        return list(db.scalars(select(Incident).where(Incident.status != "resolved").order_by(desc(Incident.updated_at), desc(Incident.id)).limit(limit).offset(offset)))
 
     def incident(self, db: Session, incident_id: str) -> Incident | None:
         return db.scalars(select(Incident).where(Incident.incident_id == incident_id).limit(1)).first()
