@@ -1,12 +1,10 @@
-from infrastructure_runtime.security import elasticsearch_options
 from datetime import UTC, datetime
 
-from elasticsearch import Elasticsearch
 from sqlalchemy.orm import Session
 
-from app.core.settings import settings
 from app.repositories.alert_repository import AlertRepository
 from app.schemas.alerts import AlertStatsResponse
+from app.services.search_client import run_search
 
 
 class AlertQueryService:
@@ -41,19 +39,7 @@ class AlertQueryService:
         return self._repository.update_incident_status(db, incident_id, status, notes)
 
     def search(self, query: str, limit: int = 25) -> list[dict]:
-        try:
-            client = Elasticsearch(settings.elasticsearch_host, request_timeout=2, **elasticsearch_options(settings.elasticsearch_host))
-            if not client.ping():
-                return []
-            response = client.search(
-                index="alerts,incidents",
-                size=limit,
-                query={"query_string": {"query": query, "default_field": "*"}},
-                sort=[{"timestamp": {"order": "desc", "unmapped_type": "date"}}],
-            )
-            return [hit["_source"] for hit in response["hits"]["hits"]]
-        except Exception:
-            return []
+        return run_search("alerts,incidents", query, limit, newest_first=True)
 
     def live_message(self, db: Session):
         recent = self.recent_alerts(db, 50)

@@ -122,4 +122,30 @@ if not rule_alerts <= linked:
     raise SystemExit(f"Authenticated dashboard API is missing RFC1918 rule alerts for the incident: {rule_alerts - linked}")
 PY
 
-echo "Synthetic correlation demo passed: documentation_source=${DOCUMENTATION_SOURCE_IP} documentation_alerts=${documentation_brute_alerts} documentation_rules=brute_force_detection documentation_incidents=${documentation_incidents} documentation_incident_events=${documentation_incident_events}; grouping_source=${GROUPING_SOURCE_IP} grouping_alerts=$(( grouping_brute_alerts + grouping_lateral_alerts )) grouping_rules=${grouping_rule_names} grouping_incidents=${grouping_incidents} grouping_incident_events=${grouping_incident_events} grouping_rule_alerts_linked=${grouping_rule_linked}; honeypot_windows_scored=$(( documentation_scored + grouping_scored )); total_fixture_alerts=${total_fixture_alerts} total_fixture_incidents=${total_fixture_incidents}. Deliberately constructed fixture records validate correlation logic, not real attacker behavior."
+# Search must find what was just ingested, and a failed or invalid search must say so instead of returning nothing.
+search_matches() {
+  curl -fsS -b "$work_dir/cookies.txt" -H 'Origin: http://localhost:5173' --get --data-urlencode "q=$2" \
+    "http://localhost:8000/api/v1/$1" | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0
+}
+search_deadline=$(( $(date +%s) + ${SEARCH_TIMEOUT_SECONDS:-120} ))
+while true; do
+  event_matches=$(search_matches search/events "$DOCUMENTATION_SOURCE_IP")
+  alert_matches=$(search_matches alerts/search "$DOCUMENTATION_SOURCE_IP")
+  threat_matches=$(search_matches threat-intel/search "$DOCUMENTATION_SOURCE_IP")
+  if (( event_matches > 0 && alert_matches > 0 && threat_matches > 0 )) || (( $(date +%s) >= search_deadline )); then
+    break
+  fi
+  sleep 3
+done
+if (( event_matches == 0 || alert_matches == 0 || threat_matches == 0 )); then
+  echo "Search did not find the ingested honeypot source ${DOCUMENTATION_SOURCE_IP}: events=${event_matches}, alerts=${alert_matches}, threat_intel=${threat_matches}." >&2
+  exit 1
+fi
+invalid_status=$(curl -s -o /dev/null -w '%{http_code}' -b "$work_dir/cookies.txt" -H 'Origin: http://localhost:5173' \
+  --get --data-urlencode 'q=(unbalanced' http://localhost:8000/api/v1/search/events)
+if [[ "$invalid_status" != 400 ]]; then
+  echo "A malformed search query returned HTTP ${invalid_status}, expected 400." >&2
+  exit 1
+fi
+
+echo "Synthetic correlation demo passed: documentation_source=${DOCUMENTATION_SOURCE_IP} documentation_alerts=${documentation_brute_alerts} documentation_rules=brute_force_detection documentation_incidents=${documentation_incidents} documentation_incident_events=${documentation_incident_events}; grouping_source=${GROUPING_SOURCE_IP} grouping_alerts=$(( grouping_brute_alerts + grouping_lateral_alerts )) grouping_rules=${grouping_rule_names} grouping_incidents=${grouping_incidents} grouping_incident_events=${grouping_incident_events} grouping_rule_alerts_linked=${grouping_rule_linked}; honeypot_windows_scored=$(( documentation_scored + grouping_scored )); search_matches=events:${event_matches},alerts:${alert_matches},threat_intel:${threat_matches}; total_fixture_alerts=${total_fixture_alerts} total_fixture_incidents=${total_fixture_incidents}. Deliberately constructed fixture records validate correlation logic, not real attacker behavior."

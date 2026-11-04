@@ -50,7 +50,11 @@ The backend is the FastAPI service layer for the Real-Time Streaming Analytics S
 ## Data Sources
 
 - PostgreSQL stores structured telemetry, metrics, features, predictions, and dead letters.
-- Elasticsearch backs search queries and is optional-safe.
+- Elasticsearch backs the three search endpoints (`/search/events`, `/alerts/search`, `/threat-intel/search`).
+  When it cannot answer, they return HTTP 503 with `Retry-After`, and HTTP 400 for a query that cannot be parsed;
+  an empty list always means a search that ran and found nothing, or that nothing has been indexed yet. Search
+  results show an alert or incident as it was when last indexed, so a later status change appears in the
+  PostgreSQL-backed lists first.
 - Prometheus backs monitoring summaries when available.
 - Threat intelligence tables back IOC, MITRE, detection rule, entity, and timeline APIs.
 - Existing health endpoint remains available at `GET /api/v1/health`.

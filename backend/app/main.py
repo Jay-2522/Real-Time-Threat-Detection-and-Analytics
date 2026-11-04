@@ -11,6 +11,7 @@ from app.core.metrics import PrometheusMetricsMiddleware, metrics_response
 from app.core.settings import settings
 from app.db.session import initialize_database
 from app.middleware.security import LocalRateLimitMiddleware, SecurityHeadersMiddleware
+from app.services.search_client import InvalidSearchQuery, SearchUnavailable
 
 
 def create_application() -> FastAPI:
@@ -61,6 +62,16 @@ def create_application() -> FastAPI:
     async def validation_error_handler(request: Request, exc: RequestValidationError):
         # Pydantic's default response echoes input, including password fields.
         return JSONResponse(status_code=422, content={"detail": "Invalid request"},
+                            headers={"Cache-Control": "no-store"})
+
+    @application.exception_handler(SearchUnavailable)
+    async def search_unavailable_handler(request: Request, exc: SearchUnavailable) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": "Search is temporarily unavailable"},
+                            headers={"Retry-After": "30", "Cache-Control": "no-store"})
+
+    @application.exception_handler(InvalidSearchQuery)
+    async def invalid_search_handler(request: Request, exc: InvalidSearchQuery) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"detail": "The search query could not be parsed"},
                             headers={"Cache-Control": "no-store"})
 
     @application.exception_handler(Exception)

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.settings import settings
 from app.repositories.analytics_repository import AnalyticsRepository
 from app.schemas.dashboard import ChartPoint, DashboardOverviewResponse, EntityRiskPoint, SystemComponentHealth, SystemHealthResponse
+from app.services.search_client import run_search
 
 
 class AnalyticsQueryService:
@@ -31,19 +32,7 @@ class AnalyticsQueryService:
         return self._repository.high_risks(db, limit)
 
     def search_events(self, query: str, limit: int = 25) -> list[dict]:
-        try:
-            client = Elasticsearch(settings.elasticsearch_host, request_timeout=2, **elasticsearch_options(settings.elasticsearch_host))
-            if not client.ping():
-                return []
-            response = client.search(
-                index="telemetry-events,analytics-events,ml-predictions",
-                size=limit,
-                query={"query_string": {"query": query, "default_field": "*"}},
-                sort=[{"timestamp": {"order": "desc", "unmapped_type": "date"}}],
-            )
-            return [hit["_source"] for hit in response["hits"]["hits"]]
-        except Exception:
-            return []
+        return run_search("telemetry-events,analytics-events,ml-predictions", query, limit, newest_first=True)
 
     def dashboard_overview(self, db: Session) -> DashboardOverviewResponse:
         summary = self.summary(db)

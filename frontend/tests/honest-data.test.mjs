@@ -4,6 +4,9 @@ import test from "node:test";
 
 const dashboardService = await readFile(new URL("../src/services/dashboardService.ts", import.meta.url), "utf8");
 const dataState = await readFile(new URL("../src/components/ui/DataState.tsx", import.meta.url), "utf8");
+const apiErrors = await readFile(new URL("../src/utils/apiErrors.ts", import.meta.url), "utf8");
+const searchPage = await readFile(new URL("../src/pages/SearchPage.tsx", import.meta.url), "utf8");
+const asyncData = await readFile(new URL("../src/hooks/useAsyncData.ts", import.meta.url), "utf8");
 const recordsTable = await readFile(new URL("../src/components/tables/RecordTables.tsx", import.meta.url), "utf8");
 const liveStream = await readFile(new URL("../src/pages/LiveStreamPage.tsx", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../src/layouts/DashboardLayout.tsx", import.meta.url), "utf8");
@@ -20,7 +23,17 @@ test("dashboard service cannot restore the known fabricated fallbacks", () => {
 
 test("empty and failed requests have explicit user-facing states", () => {
   assert.match(dataState, /No data yet/);
-  assert.match(dataState, /API unreachable/);
+  assert.match(apiErrors, /API unreachable/);
+});
+
+test("a failed search says why instead of looking like no matches or a dead API", () => {
+  assert.match(apiErrors, /status === 503\) return "Search is temporarily unavailable/);
+  assert.match(apiErrors, /status === 400\) return "That query could not be parsed/);
+  assert.match(apiErrors, /status === undefined\) return "API unreachable"/);
+  assert.match(dataState, /\{message\}/);
+  assert.doesNotMatch(searchPage, />API unreachable</);
+  assert.match(searchPage, /describeApiError/);
+  assert.match(asyncData, /setError\(describeApiError\(err\)\)/);
 });
 
 test("live records keep provenance and distinguish source labels from model severity", () => {

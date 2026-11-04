@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { describeApiError } from "../utils/apiErrors";
+
 export function useAsyncData<T>(loader: () => Promise<T>, dependencies: unknown[] = [], intervalMs?: number) {
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,7 +18,7 @@ export function useAsyncData<T>(loader: () => Promise<T>, dependencies: unknown[
           setError(null);
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Unable to load data");
+        if (!cancelled) setError(describeApiError(err));
       } finally {
         if (!cancelled) setIsLoading(false);
       }

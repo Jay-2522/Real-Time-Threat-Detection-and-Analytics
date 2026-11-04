@@ -1,5 +1,4 @@
 from __future__ import annotations
-from infrastructure_runtime.security import elasticsearch_options
 
 import json
 import logging
@@ -8,13 +7,13 @@ from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from elasticsearch import Elasticsearch
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.settings import settings
 from app.db.models import AttackTimeline, DetectionRuleHit, EntityProfile, IOCMatch, ThreatIntelEvent
 from app.services.mitre_mapper import MitreMapper
+from app.services.search_client import run_search
 
 logger = logging.getLogger(__name__)
 
@@ -135,14 +134,7 @@ class ThreatIntelQueryService:
         return {"total_rule_hits": db.scalar(select(func.count()).select_from(DetectionRuleHit)) or 0, "rules": self.detection_rules(db)}
 
     def search(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
-        try:
-            client = Elasticsearch(settings.elasticsearch_host, request_timeout=2, **elasticsearch_options(settings.elasticsearch_host))
-            if not client.ping():
-                return []
-            response = client.search(index="threat-intel-events,ioc-matches,entity-profiles,detection-rule-hits,attack-timelines", size=limit, query={"query_string": {"query": query, "default_field": "*"}})
-            return [hit["_source"] for hit in response["hits"]["hits"]]
-        except Exception:
-            return []
+        return run_search("threat-intel-events,ioc-matches,entity-profiles,detection-rule-hits,attack-timelines", query, limit)
 
     def live_message(self, db: Session) -> dict[str, Any]:
         return {
