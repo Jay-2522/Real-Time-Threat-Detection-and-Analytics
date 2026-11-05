@@ -77,7 +77,7 @@ It is not:
 - a multi-node or high-availability deployment;
 - evidence of detection quality on a live network.
 
-Events are synthetic by default. CIC-IDS-2017 is used only for offline evaluation and never enters the running stack. The separate hardened deployment is experimental and is not covered by CI.
+Events are synthetic by default. CIC-IDS-2017 is used only for offline evaluation and never enters the running stack. The separate hardened deployment is experimental; CI starts its core (database, search, API, TLS proxy, monitoring) and runs its isolated tests, but not its streaming workers.
 
 ## Architecture
 
@@ -249,7 +249,7 @@ The Security Scans run on commit 6e6a64c reported findings rather than fixing or
 - Four YAML rules are enabled. Three are disabled: impossible travel lacks two timestamped locations, privilege escalation lacks before/after privilege data, and process-chain detection lacks process/parent/command-line fields.
 - Threat-intelligence enrichment uses hardcoded demonstration countries, domains, usernames, and hashes rather than maintained external feeds.
 - Windowed alerts deliberately take minutes because of window closure and watermarking, and can take longer under backlog.
-- The hardened deployment is experimental and excluded from CI.
+- The hardened deployment is experimental. The Hardened Smoke workflow starts its core and runs the isolated tests; the Kafka/Spark/worker layer of that topology is not started in CI.
 - ZooKeeper and Elasticsearch remain. Neither has been replaced or evaluated as a multi-node service.
 - No multi-node benchmark, multi-hour soak, host-loss exercise, or live-network detection study has been run.
 - Elasticsearch can lag PostgreSQL while durable outbox work retries.

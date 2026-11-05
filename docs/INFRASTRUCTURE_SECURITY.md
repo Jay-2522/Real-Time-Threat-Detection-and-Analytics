@@ -1,8 +1,12 @@
 # Experimental hardened deployment
 
 `deploy/hardened/compose.yml` is a separate experimental topology. It is not merged
-with root Compose, is not covered by Fast Checks, Stack Smoke, or Security Scans, and
-has not been benchmarked with the numbers in `benchmarks/results/latest.md`.
+with root Compose and has not been benchmarked with the numbers in `benchmarks/results/latest.md`.
+
+The Hardened Smoke workflow provisions disposable credentials, starts the core (PostgreSQL,
+Elasticsearch, API, TLS proxy, Prometheus) and runs `tests/hardening/test_configuration.py` and
+`test_stack.py` against it. The Kafka, Spark and worker layer is not started in CI, so its opt-in
+tests (worker-scoped identities, streaming, recovery) still run only by hand.
 
 The definition demonstrates generated per-service credentials, TLS, Kafka ACLs,
 network separation, non-root containers, read-only filesystems, and restricted Linux
