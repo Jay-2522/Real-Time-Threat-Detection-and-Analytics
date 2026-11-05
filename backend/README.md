@@ -61,6 +61,9 @@ The backend is the FastAPI service layer for the Real-Time Streaming Analytics S
   When Prometheus is unreachable, Spark is judged the same way instead of being reported degraded.
 - `/detections/loaded-rules` lists every detection rule the running threat engine reported at startup, enabled or
   disabled, from PostgreSQL; it does not depend on Prometheus.
+- Event, feature, prediction and dead-letter records older than `RETENTION_DAYS` (default 30, set in `.env`; 0 keeps
+  everything) are deleted hourly by the storage sink, so the totals above cover the retention window, not all time.
+  Alerts, incidents and threat-intelligence records are kept.
 
 ## Data Sources
 

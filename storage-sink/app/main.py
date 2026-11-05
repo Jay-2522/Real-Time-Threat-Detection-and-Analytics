@@ -5,6 +5,7 @@ from app.consumers.storage_consumer import StorageSinkConsumer
 from app.db.session import create_session_factory
 from app.elastic.indexer import ElasticsearchIndexer
 from app.repositories.postgres_repository import PostgresStorageRepository
+from app.retention import RetentionWorker
 from app.utils.logging import configure_logging
 from app.utils.metrics import start_metrics_server
 from app.utils.retry import retry_with_backoff
@@ -24,12 +25,17 @@ def main() -> None:
     indexer = ElasticsearchIndexer(settings)
     indexer.initialize()
 
-    StorageSinkConsumer(
-        settings=settings,
-        session_factory=session_factory,
-        repository=PostgresStorageRepository(),
-        indexer=indexer,
-    ).run()
+    retention = RetentionWorker(session_factory, settings.retention_days)
+    retention.start()
+    try:
+        StorageSinkConsumer(
+            settings=settings,
+            session_factory=session_factory,
+            repository=PostgresStorageRepository(),
+            indexer=indexer,
+        ).run()
+    finally:
+        retention.stop()
 
 
 if __name__ == "__main__":

@@ -20,6 +20,8 @@ class StorageSinkSettings(BaseSettings):
     elasticsearch_host: str = Field(default="http://localhost:9200", validation_alias="ELASTICSEARCH_HOST")
     metrics_port: int = Field(default=9102, validation_alias="STORAGE_SINK_METRICS_PORT")
 
+    retention_days: int = Field(default=30, ge=0, validation_alias="RETENTION_DAYS")
+
     consumer_client_id: str = "streaming-analytics-storage-sink"
     batch_size: int = Field(default=200, ge=1, le=1000, validation_alias="STORAGE_SINK_BATCH_SIZE")
     batch_wait_ms: int = Field(default=50, ge=0, le=1000, validation_alias="STORAGE_SINK_BATCH_WAIT_MS")

@@ -89,6 +89,8 @@ jobs:
         run: pytest -q tests/reliability/test_incident_lifecycle.py
       - name: Test detection rule catalog report
         run: pytest -q tests/reliability/test_rule_catalog.py
+      - name: Test pipeline record retention
+        run: pytest -q tests/reliability/test_retention.py
 
   spark-contract:
     runs-on: ubuntu-latest

@@ -292,6 +292,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: streaming-analytics-kafka:29092
       STORAGE_SINK_CONSUMER_GROUP: streaming-analytics-storage-sink
       STORAGE_SINK_LOG_LEVEL: INFO
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
       POSTGRES_HOST: streaming-analytics-postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: streaming_analytics

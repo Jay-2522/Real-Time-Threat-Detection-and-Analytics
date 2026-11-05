@@ -8,3 +8,4 @@ STORAGE_SINK_LAG_ESTIMATE = Gauge("storage_sink_lag_estimate", "Storage sink lag
 
 def start_metrics_server(port: int) -> None:
     start_http_server(port)
+RECORDS_PRUNED_TOTAL = Counter("records_pruned_total", "Stored pipeline records deleted by retention", ["table"])
