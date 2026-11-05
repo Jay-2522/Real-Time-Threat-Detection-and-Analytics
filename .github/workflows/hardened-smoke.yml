@@ -1,0 +1,89 @@
+name: Hardened Smoke
+
+# Brings up the hardened deployment (TLS, per-service credentials, least-privilege database and search roles,
+# read-only containers) from generated disposable credentials and runs its isolated tests against it.
+on:
+  push:
+    paths:
+      - "deploy/hardened/**"
+      - "backend/**"
+      - "frontend/**"
+      - "infrastructure_runtime/**"
+      - "migrations/**"
+      - "scripts/provision_hardened.py"
+      - "tests/hardening/**"
+      - ".github/workflows/hardened-smoke.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: hardened-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  HARDENED_PROJECT: soc-hardened
+  HARDENED_INTEGRATION: "1"
+
+jobs:
+  hardened-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: |
+          pip install -r requirements-test.txt httpx playwright
+          python -m playwright install --with-deps chromium
+      - name: Provision disposable credentials and certificates
+        run: |
+          secrets_dir="$RUNNER_TEMP/hardened-secrets"
+          python3 scripts/provision_hardened.py --directory "$secrets_dir" --test-only
+          mkdir -p "$RUNNER_TEMP/hardened-models"
+          echo "HARDENED_SECRETS_DIR=$secrets_dir" >> "$GITHUB_ENV"
+          echo "HARDENED_MODEL_DIR=$RUNNER_TEMP/hardened-models" >> "$GITHUB_ENV"
+      - name: Prepare volumes and build images
+        run: |
+          compose="docker compose -p $HARDENED_PROJECT -f deploy/hardened/compose.yml"
+          $compose --profile setup run --rm permissions
+          $compose --profile setup build bootstrap backend web postgres
+      - name: Start database and search, then provision roles
+        run: |
+          compose="docker compose -p $HARDENED_PROJECT -f deploy/hardened/compose.yml"
+          $compose up -d postgres elasticsearch
+          for attempt in $(seq 1 30); do
+            if $compose --profile setup run --rm bootstrap; then exit 0; fi
+            echo "bootstrap attempt $attempt failed; database or search is not ready yet"
+            sleep 10
+          done
+          exit 1
+      - name: Start the API, web proxy and monitoring
+        run: |
+          compose="docker compose -p $HARDENED_PROJECT -f deploy/hardened/compose.yml"
+          $compose up -d --wait --wait-timeout 300 backend web prometheus
+          $compose ps
+      - name: Run the isolated hardened tests
+        run: pytest -q tests/hardening/test_configuration.py tests/hardening/test_stack.py
+      - name: Capture failure diagnostics
+        if: failure()
+        run: |
+          mkdir -p ci-logs
+          compose="docker compose -p $HARDENED_PROJECT -f deploy/hardened/compose.yml"
+          $compose --profile setup ps --all > ci-logs/compose-ps.txt 2>&1 || true
+          $compose --profile setup logs --no-color > ci-logs/containers.log 2>&1 || true
+          cp -r .codex-logs ci-logs/test-failures 2>/dev/null || true
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardened-smoke-logs-${{ github.run_id }}
+          path: ci-logs/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Stop the disposable deployment
+        if: always()
+        run: docker compose -p "$HARDENED_PROJECT" -f deploy/hardened/compose.yml --profile setup down --volumes --remove-orphans

@@ -37,6 +37,8 @@ def main():
                 if db.execute(text('SELECT to_regclass(:table)'),{'table':table}).scalar():
                     db.execute(text(f'GRANT SELECT, INSERT, UPDATE ON {table} TO "{name}"'))
             db.execute(text(f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{name}"'))
+        # The storage sink prunes pipeline records past RETENTION_DAYS; no other worker may delete.
+        db.execute(text('GRANT DELETE ON '+', '.join(tables['storage'])+' TO storage'))
         for table in ('pipeline_receipts','pipeline_outbox','pipeline_quarantine'):
             db.execute(text(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY'))
             for role,condition in (('backend','true'),('storage',"service = 'storage'"),('alerts',"service = 'alert'"),('threat',"service = 'threat'")):
